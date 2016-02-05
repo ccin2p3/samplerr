@@ -1,0 +1,4 @@
+{:plugin "samplerr"
+ :title "A plugin for aggregating metrics in a round-robin fashion into elasticsearch"
+ :git-repo "https://github.com/samplerr/samplerr"
+ :require riemann.plugin.samplerr}

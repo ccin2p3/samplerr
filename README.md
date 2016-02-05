@@ -26,20 +26,17 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
 ## Synopsis
 
 ```clojure
-(require '[riemann.samplerr :as samplerr])
-
-(samplerr/init {:rra [
-  {:step 20 :keep 86400 :timestamping :day}
-  {:step 600 :keep 2635200 :timestamping :month}
-  {:step 3600 :keep 31556736 :timestamping :year}] })
+(load-plugins)
 
 (samplerr/periodically-expire 172800)
-
-(let [index (index)]
+(let [rrdtool2016 (samplerr/bulk 
+                    {:rra [{:step 20   :keep 86400    :index_ts :day}
+                           {:step 600  :keep 2635200  :index_ts :month}
+                           {:step 3600 :keep 31556736 :index_ts :year}]})]
   (streams
     (where (tagged "collectd")
-      (async-queue! :samplerr {:queue-size 10000}
-        (batch 10000 10 (samplerr/down
-          index))))))
+      (by [:host :service]
+        (async-queue! :samplerr {:queue-size 10000}
+          (batch 10000 10 rrdtool2016))))))
 ```
 
