@@ -7,6 +7,12 @@
 * manages your time based elasticsearch indices and evicts old data
 * ensures your metric stays within storage boundaries
 
+## what's before alpha?
+
+**DISCLAIMER**
+
+this code doesn't work yet, but it will hopefully soon!
+
 ## Installation
 
 After cloning the repo, you can build the plugin using [leiningen](/technomancy/leiningen)
