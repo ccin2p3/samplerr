@@ -34,15 +34,58 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
 ```clojure
 (load-plugins)
 
-(samplerr/periodically-expire 172800)
-(let [rrdtool2016 (samplerr/bulk 
-                    {:rra [{:step 20   :keep 86400    :index_ts :day}
-                           {:step 600  :keep 2635200  :index_ts :month}
-                           {:step 3600 :keep 31556736 :index_ts :year}]})]
+(let [day    "'samplerr-'YYYY.MM.DD"
+      month  "'samplerr-'YYYY.MM"
+      year   "'sampler-'YYYY"
+      ;cfuncs {:sum folds/sum :max folds/max :min folds/min}
+      ;cfuncs [folds/sum folds/max folds/min]
+      cfuncs  folds/mean
+
+      rrdtool2016 (samplerr/index 
+                    { :url "http://localhost:9200"
+                    	:rra [{:step 20  :keep 86400     :es_index day   :cfunc cfuncs}
+                           {:step 600  :keep 5356800   :es_index month :cfunc cfuncs}
+                           {:step 3600 :keep 315567360 :es_index year  :cfunc cfuncs]
+                     :expire-every 172800})]
   (streams
     (where (tagged "collectd")
       (by [:host :service]
-        (async-queue! :samplerr {:queue-size 10000}
+        (async-queue! :samplerr {:queue-size 1000}
           (batch 10000 10 rrdtool2016))))))
 ```
+
+This will index all events tagged `collectd`, one document per `host`,`service`, `step`, and `cfunc`.
+
+## Round Robin Archives
+
+samplerr will send data to different elasticsearch time-based indices using different resolutions. The `:rra` parameter to `samplerr/index` contains a list of round-robin archives and should contain a vector of hash-maps with the following keys:
+
+* `:step`: time in seconds during which riemann shall aggregate data
+* `:keep`: time in seconds during which data should be kept at this resolution. Indices will be purged and linked to the next lower resolution index every `:expire-every` seconds
+* `:cfunc`: consolidation stream function which should be used to aggregate data during `:step` interval. Examples: `folds/sum`, `folds/count`, *etc.*
+* `:es_index`: elasticsearch index pattern the archive's stream shall be indexed to: should be a clj-time.format/formatter string
+
+## Expiry
+
+In order to keep disk space in bounds, samplerr will purge expiring high resolution data in favour of lower resolution data. To achieve this, it will periodically (every `:expire-every` seconds):
+
+* process indices from highest to lowest resolution
+* delete indices if their age is greater than `:keep`
+* create an alias for the deleted index pointing to the overlapping, lower resolution corresponding index
+
+### Example
+
+Take the example in [#synopsis]. Let's say today is 2016-02-01.
+Riemann started exactly 2 days ago. samplerr's reaper fires up and processes the elasticsearch indices:
+
+* `samplerr-2016.02.01` is younger than two days, and thus left alone
+* `samplerr-2016.01.31` is younger than two days, and thus left alone
+* `samplerr-2016.01.30` is two days old and DELETED
+* the alias `samplerr-2016.01.30` is created and pointed to `samplerr-2016.01`
+* all other daily based indices are already aliases and thus left alone
+* `sampler-2015.02` is younger than two months, and thus left alone
+* `sampler-2015.01` is younger than two months, and thus left alone
+* `sampler-2014.12` is two months old and DELETED
+* the alias `sampler-2014.12` is created and pointed to `sampler-2014`
+* …
 
