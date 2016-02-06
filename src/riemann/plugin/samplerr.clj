@@ -178,3 +178,26 @@
   [{:keys [rra] :as config}]
   (map es-index (:rra config)))
 
+;;;;;;
+;;;;;;
+;;;;;;
+
+(defn compare-step
+  "orders a vector of hash-maps using the key :step"
+  [a b]
+  (- (:step a) (:step b)))
+
+(defn index
+  "indexes events to elasticsearch to all round robin archives"
+  [{:keys [url] :as config}]
+  (let [conn (esr/connect url)]
+    (map agg (sort compare-step (:rra config)))))
+
+(defn agg
+  "aggregates data for each given cfunc"
+  [{:keys [cfunc step es_type es_index] :as config}]
+  (coalesce step
+    (smap cfunc
+      (with {:sampler.agg.cfunc (:name (meta #'cfunc)) :sampler.agg.step step}
+        (es-index {:es_type es_type :es_index es_index})))))
+
