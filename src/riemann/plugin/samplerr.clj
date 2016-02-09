@@ -95,7 +95,7 @@
   for the node, which defaults to `http://localhost:9200`.  This must
   be called before any es-* functions can be used."
   [& argv]
-  (esr/connect! (or (first argv) "http://localhost:9200")))
+  (esr/connect (or (first argv) "http://localhost:9200")))
 
 (defn es-index
   "A function which takes a sequence of events, and indexes them in
@@ -187,17 +187,29 @@
   [a b]
   (- (:step a) (:step b)))
 
-(defn index
-  "indexes events to elasticsearch to all round robin archives"
-  [{:keys [url] :as config}]
-  (let [conn (esr/connect url)]
-    (map agg (sort compare-step (:rra config)))))
+;(defn index
+;  "indexes events to elasticsearch to all round robin archives"
+;  [{:keys [url] :as config}]
+;  (let [conn (esr/connect url)]
+;    (map agg (sort compare-step (:rra config)))))
 
-(defn agg
-  "aggregates data for each given cfunc"
-  [{:keys [cfunc step es_type es_index] :as config}]
-  (coalesce step
-    (smap cfunc
-      (with {:sampler.agg.cfunc (:name (meta #'cfunc)) :sampler.agg.step step}
-        (es-index {:es_type es_type :es_index es_index})))))
+;;;;
+;;;;
+;;;;
+
+(defn archive-n
+  "takes map of archive parameters and sends time-aggregated data to elasticsearch"
+  [{:keys [cfunc step keep] :as args :or {cfunc {:name "average" :func #(if (> (count %) 0) (/ (apply + %) (count %)))}}}]
+  (let [cfunc_n (:name cfunc)
+        cfunc_f (:func cfunc)]
+    (streams/with {:samplerr.step step :samplerr.keep keep :samplerr.cfunc cfunc_n :ttl step}
+      (streams/by [:host :service]
+        ;(fold-interval-metric step cfunc_f (where service prn))))))
+        (streams/fold-interval-metric step cfunc_f (streams/where metric prn))))))
+
+(defn archive
+  "takes vector of archives and generates (count vector) archive-n streams"
+  [fields & children]
+  (let [rra-vec (:rra fields)]
+    (apply streams/sdo (map archive-n rra-vec))))
 

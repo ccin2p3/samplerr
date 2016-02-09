@@ -37,16 +37,14 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
 (let [day    "'samplerr-'YYYY.MM.DD"
       month  "'samplerr-'YYYY.MM"
       year   "'sampler-'YYYY"
-      ;cfuncs {:sum folds/sum :max folds/max :min folds/min}
-      ;cfuncs [folds/sum folds/max folds/min]
-      cfuncs  folds/mean
+      cfunc  {:func folds/mean :name average}
 
       rrdtool2016 (samplerr/index 
-                    { :url "http://localhost:9200"
-                    	:rra [{:step 20  :keep 86400     :es_index day   :cfunc cfuncs}
-                           {:step 600  :keep 5356800   :es_index month :cfunc cfuncs}
-                           {:step 3600 :keep 315567360 :es_index year  :cfunc cfuncs]
-                     :expire-every 172800})]
+                    { :conn (elastic/connect "http://127.0.0.1:9200")
+                    	:rra  [{:step 20   :keep 86400     :es_index day   :cfunc cfunc}
+                             {:step 600  :keep 5356800   :es_index month :cfunc cfunc}
+                             {:step 3600 :keep 315567360 :es_index year  :cfunc cfunc}]
+                      :expire-every 172800})]
   (streams
     (where (tagged "collectd")
       (by [:host :service]
