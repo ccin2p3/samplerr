@@ -20,8 +20,8 @@
                                   v))) 
                                 {} key-map))
 
-(defn make-index-timestamper [index period]
-  (let [formatter (clj-time.format/formatter (str "'" index "'"
+(defn make-index-timestamper [index]
+  (let [period :day formatter (clj-time.format/formatter (str "'" index "'"
                                   (cond
                                    (= period :day)
                                    "-YYYY.MM.dd"
@@ -93,22 +93,33 @@
 (defn connect
   "Connect to ElasticSearch"
   [& argv]
-  (esr/connect (or argv "http://localhost:9200")))
+  (apply esr/connect argv))
 
+(defn es-dummy
+  "bulk index to ES"
+  [{:keys [es_conn es_type es_index timestamping message]
+    :as foo
+               :or {es_index "sampler"
+                    es_type "sampler"
+                    message true
+                    timestamping :day}} children]
+  (streams/with foo children))
+  
 (defn es-index
   "bulk index to ES"
   [{:keys [es_conn es_type es_index timestamping message]
                :or {es_index "sampler"
                     es_type "sampler"
                     message true
-                    timestamping :day}}]
-  (let [index-namer (make-index-timestamper es_index timestamping)]
+                    timestamping :day}} & children]
+  (let [index-namer (make-index-timestamper es_index)]
     (fn [events]
       (let [esets (group-by (fn [e] 
                               (index-namer 
                                (clj-time.format/parse format-iso8601 
                                                       (get e "@timestamp"))))
                             (riemann-to-elasticsearch events message))]
+        (do
         (doseq [es_index (keys esets)]
           (let [raw (get esets es_index)
                 bulk-create-items
@@ -124,21 +135,11 @@
                       total (count (:items res))
                       succ (filter :ok (:items res))
                       failed (filter :error (:items res))]
-                  
                   (info "elasticized" total "/" (count succ) "/" (count failed) " (total/succ/fail) items to index " es_index "in " (:took res) "ms")
                   (debug "Failed: " failed))
                 (catch Exception e
-                  (error "Unable to bulk index:" e))))))))))
-(defn es-index-new
-  "bulk index to ES"
-  [{:keys [es_conn es_type es_index timestamping message]
-               :or {es_index "sampler"
-                    es_type "sampler"
-                    message true
-                    timestamping :day}}]
-  (fn stream [events]
-    (prn events)))
- 
+                  (error "Unable to bulk index:" e))))))) (streams/call-rescue events children)))))
+
 (defn ^{:private true} resource-as-json [resource-name]
   (json/parse-string (slurp (io/resource resource-name))))
 
@@ -197,9 +198,9 @@
         ;(fold-interval-metric step cfunc_f (where service prn))))))
         (streams/fixed-offset-time-window step
           (streams/smap cfunc_f
-            (streams/batch 100 1
-              ;es-index-new (select-keys args [:es_index :es_type :es_conn]))))))))
-              (apply streams/sdo children))))))))
+            (streams/batch 100 10
+              (es-index (select-keys args [:es_index :es_type :es_conn])))))))))
+              ;(apply streams/sdo children))))))))
 
 (defn archive
   "takes vector of archives and generates (count vector) archive-n streams"
