@@ -40,10 +40,10 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
       cfunc  {:func folds/mean :name average}
 
       rrdtool2016 (samplerr/index 
-                    { :conn (elastic/connect "http://127.0.0.1:9200")
-                    	:rra  [{:step 20   :keep 86400     :es_index day   :cfunc cfunc}
-                             {:step 600  :keep 5356800   :es_index month :cfunc cfunc}
-                             {:step 3600 :keep 315567360 :es_index year  :cfunc cfunc}]
+                    { :elastic (samplerr/connect "http://127.0.0.1:9200")
+                    	:rra     [{:step 20   :keep 86400     :es_index day   :cfunc cfunc}
+                                {:step 600  :keep 5356800   :es_index month :cfunc cfunc}
+                                {:step 3600 :keep 315567360 :es_index year  :cfunc cfunc}]
                       :expire-every 172800})]
   (streams
     (where (tagged "collectd")

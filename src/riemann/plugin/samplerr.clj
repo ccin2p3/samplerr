@@ -90,34 +90,14 @@
        (remove streams/expired?)
        (map #(elastic-event % message))))
 
-(defn es-connect
-  "Connects to the ElasticSearch node.  The optional argument is a url
-  for the node, which defaults to `http://localhost:9200`.  This must
-  be called before any es-* functions can be used."
+(defn connect
+  "Connect to ElasticSearch"
   [& argv]
-  (esr/connect (or (first argv) "http://localhost:9200")))
+  (esr/connect (or argv "http://localhost:9200")))
 
 (defn es-index
-  "A function which takes a sequence of events, and indexes them in
-  ElasticSearch.  It will set the `_type` field of the event to the
-  value of `es_type`, which tells ES which mapping to use for the
-  event.
-
-  The :index argument defaults to \"logstash\" for Kibana
-  compatability.  It's the root ES index name that this event will be
-  indexed within.
-  
-  The :timestamping argument, default to :day and it controls the time
-  range component of the index name.  Acceptable values
-  are :hour, :day, :week, :month and :year.
-
-  Events will be messages to conform to Kibana expections.  This means
-  that the `@timestamp` field will be set if not found, based on the
-  `time` field of the event.  The `ttl` field will be removed, as it's
-  internal to Riemann.  Lastly, any fields starting with an `_` will
-  have their value parsed as EDN.
-"
-  [{:keys [es_type es_index timestamping message]
+  "bulk index to ES"
+  [{:keys [es_conn es_type es_index timestamping message]
                :or {es_index "sampler"
                     es_type "sampler"
                     message true
@@ -140,7 +120,7 @@
                             raw)]
             (when (seq bulk-create-items)
               (try
-                (let [res (eb/bulk-with-index es_index bulk-create-items)
+                (let [res (eb/bulk-with-index es_conn es_index bulk-create-items)
                       total (count (:items res))
                       succ (filter :ok (:items res))
                       failed (filter :error (:items res))]
@@ -149,7 +129,16 @@
                   (debug "Failed: " failed))
                 (catch Exception e
                   (error "Unable to bulk index:" e))))))))))
-
+(defn es-index-new
+  "bulk index to ES"
+  [{:keys [es_conn es_type es_index timestamping message]
+               :or {es_index "sampler"
+                    es_type "sampler"
+                    message true
+                    timestamping :day}}]
+  (fn stream [events]
+    (prn events)))
+ 
 (defn ^{:private true} resource-as-json [resource-name]
   (json/parse-string (slurp (io/resource resource-name))))
 
@@ -196,20 +185,24 @@
 ;;;;
 ;;;;
 ;;;;
+;;;;
 
 (defn archive-n
   "takes map of archive parameters and sends time-aggregated data to elasticsearch"
-  [{:keys [cfunc step keep] :as args :or {cfunc {:name "average" :func #(if (> (count %) 0) (/ (apply + %) (count %)))}}}]
+  [{:keys [cfunc step keep] :as args :or {cfunc {:name "average" :func riemann.folds/mean}}} & children]
   (let [cfunc_n (:name cfunc)
         cfunc_f (:func cfunc)]
     (streams/with {:samplerr.step step :samplerr.keep keep :samplerr.cfunc cfunc_n :ttl step}
       (streams/by [:host :service]
         ;(fold-interval-metric step cfunc_f (where service prn))))))
-        (streams/fold-interval-metric step cfunc_f (streams/where metric prn))))))
+        (streams/fixed-offset-time-window step
+          (streams/smap cfunc_f
+            (streams/batch 100 1
+              ;es-index-new (select-keys args [:es_index :es_type :es_conn]))))))))
+              (apply streams/sdo children))))))))
 
 (defn archive
   "takes vector of archives and generates (count vector) archive-n streams"
-  [fields & children]
-  (let [rra-vec (:rra fields)]
-    (apply streams/sdo (map archive-n rra-vec))))
+  [{:keys [rra] :or {rra [{:step 10 :keep 86400}{:step 600 :keep 315567360}]}} & children]
+  (apply streams/sdo (map #(apply archive-n % children) rra)))
 
