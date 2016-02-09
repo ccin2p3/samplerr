@@ -21,18 +21,7 @@
                                 {} key-map))
 
 (defn make-index-timestamper [index]
-  (let [period :day formatter (clj-time.format/formatter (str "'" index "'"
-                                  (cond
-                                   (= period :day)
-                                   "-YYYY.MM.dd"
-                                   (= period :hour)
-                                   "-YYYY.MM.dd.HH"
-                                   (= period :week)
-                                   "-xxxx.'W'ww"
-                                   (= period :month)
-                                   "-YYYY.MM"
-                                   (= period :year)
-                                   "-YYYY")))]
+  (let [formatter (clj-time.format/formatter (eval index))]
     (fn [date]
       (clj-time.format/unparse formatter date))))
 
@@ -198,7 +187,7 @@
         ;(fold-interval-metric step cfunc_f (where service prn))))))
         (streams/fixed-offset-time-window step
           (streams/smap cfunc_f
-            (streams/batch 100 10
+            (streams/batch 1 1
               (es-index (select-keys args [:es_index :es_type :es_conn])))))))))
               ;(apply streams/sdo children))))))))
 
