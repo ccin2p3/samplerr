@@ -147,16 +147,6 @@
   (esr/put (esr/index-template-url template-name)
            :body (file-as-json mapping-file)))
 
-(defn aggregate
-  "aggregate data"
-  [{:keys [period es_index es_type step]}]
-  (es-index {:es_type es_type :timestamping period :es_index es_index}))
-
-(defn bulk
-  "bulk insert into elasticsearch"
-  [{:keys [rra] :as config}]
-  (map es-index (:rra config)))
-
 ;;;;;;
 ;;;;;;
 ;;;;;;
@@ -166,16 +156,29 @@
   [a b]
   (- (:step a) (:step b)))
 
-;(defn index
-;  "indexes events to elasticsearch to all round robin archives"
-;  [{:keys [url] :as config}]
-;  (let [conn (esr/connect url)]
-;    (map agg (sort compare-step (:rra config)))))
+; see https://github.com/riemann/riemann/issues/563#issuecomment-181803478
+(defn rammer [e & children]
+  "Pushes the accumulated metrics"
+  (fn stream [events]
+    (let [events     (group-by #(if (not= (:metric %) nil) :ok :nil) events)
+          ok-events  (:ok events)
+          nil-events (:nil events)]
+      (cond
+        ok-events  (streams/call-rescue ok-events children)
+        nil-events (let [event (first nil-events)
+                         event (if (not= (:metric @e) nil) event (assoc event :state "expired"))]
+                     (riemann.config/reinject event))))))
 
-;;;;
-;;;;
-;;;;
-;;;;
+(defn fixed-time-window-folds [interval riemann_folds_func & children]
+  "Fold event stream in time every interval seconds using riemann_folds_func e.g. folds/sum"
+  (let [e (atom nil)]
+    (streams/fill-in-last 1 {:metric nil}
+      (streams/sdo
+        (streams/register e)
+          (streams/fixed-time-window interval
+            (rammer e
+              (apply streams/smap riemann_folds_func children)))))))
+
 
 (defn archive-n
   "takes map of archive parameters and sends time-aggregated data to elasticsearch"
@@ -183,12 +186,9 @@
   (let [cfunc_n (:name cfunc)
         cfunc_f (:func cfunc)]
     (streams/with {:samplerr.step step :samplerr.keep keep :samplerr.cfunc cfunc_n :ttl step}
-      (streams/by [:host :service]
-        ;(fold-interval-metric step cfunc_f (where service prn))))))
-        (streams/fixed-offset-time-window step
-          (streams/smap cfunc_f
-            (streams/batch 1 1
-              (es-index (select-keys args [:es_index :es_type :es_conn])))))))))
+      (fixed-time-window-folds step cfunc_f
+        (streams/batch 100 1
+          (es-index (select-keys args [:es_index :es_type :es_conn])))))))
               ;(apply streams/sdo children))))))))
 
 (defn archive

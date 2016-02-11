@@ -11,7 +11,7 @@
 
 **DISCLAIMER**
 
-this code doesn't work yet, but it will hopefully soon!
+This is an early alpha version. It only partially works right now
 
 ## Installation
 
@@ -38,8 +38,8 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
       month  "'samplerr-'YYYY.MM"
       year   "'sampler-'YYYY"
       cfunc  {:func folds/mean :name average}
-
-      rrdtool2016 (samplerr/index 
+      elastic (samplerr/connect "http://localhost:9200")
+      rrdtool2016 (samplerr/archive 
                     { :elastic (samplerr/connect "http://127.0.0.1:9200")
                     	:rra     [{:step 20   :keep 86400     :es_index day   :cfunc cfunc}
                                 {:step 600  :keep 5356800   :es_index month :cfunc cfunc}
@@ -48,8 +48,7 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
   (streams
     (where (tagged "collectd")
       (by [:host :service]
-        (async-queue! :samplerr {:queue-size 1000}
-          (batch 10000 10 rrdtool2016))))))
+          rrdtool2016))))
 ```
 
 This will index all events tagged `collectd`, one document per `host`,`service`, `step`, and `cfunc`.
@@ -62,8 +61,11 @@ samplerr will send data to different elasticsearch time-based indices using diff
 * `:keep`: time in seconds during which data should be kept at this resolution. Indices will be purged and linked to the next lower resolution index every `:expire-every` seconds
 * `:cfunc`: consolidation stream function which should be used to aggregate data during `:step` interval. Examples: `folds/sum`, `folds/count`, *etc.*
 * `:es_index`: elasticsearch index pattern the archive's stream shall be indexed to: should be a clj-time.format/formatter string
+* `:es_type `: elasticsearch index type. defaults to `samplerr`
 
 ## Expiry
+
+**UNIMPLEMENTED**
 
 In order to keep disk space in bounds, samplerr will purge expiring high resolution data in favour of lower resolution data. To achieve this, it will periodically (every `:expire-every` seconds):
 
