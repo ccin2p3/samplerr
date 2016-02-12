@@ -186,9 +186,10 @@
   (let [cfunc_n (:name cfunc)
         cfunc_f (:func cfunc)]
     (streams/with {:samplerr.step step :samplerr.keep keep :samplerr.cfunc cfunc_n :ttl step}
-      (fixed-time-window-folds step cfunc_f
-        (streams/batch 100 1
-          (es-index (select-keys args [:es_index :es_type :es_conn])))))))
+      (streams/by [:host :service]
+        (fixed-time-window-folds step cfunc_f
+          (streams/batch 100 1
+            (es-index (select-keys args [:es_index :es_type :es_conn]))))))))
               ;(apply streams/sdo children))))))))
 
 (defn archive

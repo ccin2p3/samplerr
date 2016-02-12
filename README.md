@@ -47,8 +47,7 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
                       :expire-every 172800})]
   (streams
     (where (tagged "collectd")
-      (by [:host :service]
-          rrdtool2016))))
+       rrdtool2016)))
 ```
 
 This will index all events tagged `collectd`, one document per `host`,`service`, `step`, and `cfunc`.
