@@ -108,7 +108,6 @@
                                (clj-time.format/parse format-iso8601 
                                                       (get e "@timestamp"))))
                             (riemann-to-elasticsearch events message))]
-        (do
         (doseq [es_index (keys esets)]
           (let [raw (get esets es_index)
                 bulk-create-items
@@ -121,13 +120,16 @@
             (when (seq bulk-create-items)
               (try
                 (let [res (eb/bulk-with-index es_conn es_index bulk-create-items)
+                      sent  (count bulk-create-items)
                       total (count (:items res))
                       succ (filter :ok (:items res))
                       failed (filter :error (:items res))]
-                  (info "elasticized" total "/" (count succ) "/" (count failed) " (total/succ/fail) items to index " es_index "in " (:took res) "ms")
+                  (info "elasticized" sent "/" total "/" (count succ) "/" (count failed) " (sent/total/succ/fail) items to index " es_index "in " (:took res) "ms")
+                  ;(info (vec bulk-create-items))
                   (debug "Failed: " failed))
                 (catch Exception e
-                  (error "Unable to bulk index:" e))))))) (streams/call-rescue events children)))))
+                  ;(error "Unable to bulk index:" e)))))) (streams/call-rescue events children)))))
+                  (error "Unable to bulk index:" e))))))))))
 
 (defn ^{:private true} resource-as-json [resource-name]
   (json/parse-string (slurp (io/resource resource-name))))
@@ -182,15 +184,14 @@
 
 (defn archive-n
   "takes map of archive parameters and sends time-aggregated data to elasticsearch"
-  [{:keys [cfunc step keep] :as args :or {cfunc {:name "average" :func riemann.folds/mean}}} & children]
+  [{:keys [writer cfunc step keep] :as args :or {cfunc {:name "average" :func riemann.folds/mean}}} & children]
   (let [cfunc_n (:name cfunc)
-        cfunc_f (:func cfunc)]
-    (streams/with {:samplerr.step step :samplerr.keep keep :samplerr.cfunc cfunc_n :ttl step}
-      (streams/by [:host :service]
-        (fixed-time-window-folds step cfunc_f
-          (streams/batch 100 1
-            (es-index (select-keys args [:es_index :es_type :es_conn]))))))))
-              ;(apply streams/sdo children))))))))
+        cfunc_f (:func cfunc)
+        writer (streams/batch 100 10 (es-index (select-keys args [:es_index :es_type :es_conn])))
+        ]
+       (streams/by [:host :service]
+         (fixed-time-window-folds step cfunc_f
+            writer))))
 
 (defn archive
   "takes vector of archives and generates (count vector) archive-n streams"
