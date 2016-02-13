@@ -190,12 +190,12 @@
   [{:keys [writer cfunc step batch] :as args :or {batch 1000 cfunc {:name "avg" :func riemann.folds/mean}}} & children]
   (let [cfunc_n (:name cfunc)
         cfunc_f (:func cfunc)
-        writer (streams/batch batch step (es-index (select-keys args [:es_index :es_type :es_conn])))
-        ]
-       (streams/with {:step step :cfunc cfunc_n :ttl (* step 2)} 
-         (streams/by [:host :service]
-           (fixed-time-window-folds step cfunc_f
-             writer)))))
+        writer (streams/batch batch step (es-index (select-keys args [:es_index :es_type :es_conn])))]
+    (streams/with {:step step :cfunc cfunc_n :ttl (* step 2)} 
+      (streams/by [:host :service]
+        (streams/fixed-offset-time-window step
+          (streams/smap cfunc_f
+            writer))))))
 
 (defn archive-n
   "takes map of archive parameters and maps to archive-n-cf for all cfuncs"
