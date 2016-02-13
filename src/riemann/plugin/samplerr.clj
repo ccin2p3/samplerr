@@ -120,12 +120,16 @@
             (when (seq bulk-create-items)
               (try
                 (let [res (eb/bulk-with-index es_conn es_index bulk-create-items)
-                      sent  (count bulk-create-items)
+                      ;; maybe we should group by http status instead:
+                      ; (group-by :status (map :create (:items res)))
+                      by_status (frequencies (map :status (map :create (:items res))))
                       total (count (:items res))
-                      succ (filter :ok (:items res))
-                      failed (filter :error (:items res))]
-                  (info "elasticized" sent "/" total "/" (count succ) "/" (count failed) " (sent/total/succ/fail) items to index " es_index "in " (:took res) "ms")
+                      succ (filter :_version (map :create (:items res)))
+                      failed (filter :error (map :create (:items res)))]
+                  ;(info "elasticized" total "/" (count succ) "/" (count failed) " (total/succ/fail) items to index " es_index "in " (:took res) "ms")
+                  (info "elasticized" total " (total) " by_status " docs to " es_index "in " (:took res) "ms")
                   ;(info (vec bulk-create-items))
+                  ;(info res)
                   (debug "Failed: " failed))
                 (catch Exception e
                   ;(error "Unable to bulk index:" e)))))) (streams/call-rescue events children)))))
@@ -184,14 +188,15 @@
 
 (defn archive-n
   "takes map of archive parameters and sends time-aggregated data to elasticsearch"
-  [{:keys [writer cfunc step keep] :as args :or {cfunc {:name "average" :func riemann.folds/mean}}} & children]
+  [{:keys [writer cfunc step batch] :as args :or {batch 1000 cfunc {:name "average" :func riemann.folds/mean}}} & children]
   (let [cfunc_n (:name cfunc)
         cfunc_f (:func cfunc)
-        writer (streams/batch 100 10 (es-index (select-keys args [:es_index :es_type :es_conn])))
+        writer (streams/batch batch step (es-index (select-keys args [:es_index :es_type :es_conn])))
         ]
-       (streams/by [:host :service]
+       (streams/with {:step step :cfunc cfunc_n :ttl (* step 2)} 
+         (streams/by [:host :service]
          (fixed-time-window-folds step cfunc_f
-            writer))))
+            writer)))))
 
 (defn archive
   "takes vector of archives and generates (count vector) archive-n streams"
