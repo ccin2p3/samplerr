@@ -34,22 +34,21 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
 ```clojure
 (load-plugins)
 
-(let [day    "'samplerr-'YYYY.MM.DD"
-      month  "'samplerr-'YYYY.MM"
-      year   "'sampler-'YYYY"
-      cfunc  [{:func folds/mean :name avg}
-              {:func folds/minimum :name min}
-              {:func folds/maximum :name max}]
+(let [day     "'samplerr-'YYYY.MM.DD"
+      month   "'samplerr-'YYYY.MM"
+      year    "'sampler-'YYYY"
       elastic (samplerr/connect "http://localhost:9200")
-      rrdtool2016 (samplerr/archive 
-                    { :elastic (samplerr/connect "http://127.0.0.1:9200")
-                    	:rra     [{:step 20   :keep 86400     :es_index day   :cfunc cfunc}
-                                {:step 600  :keep 5356800   :es_index month :cfunc cfunc}
-                                {:step 3600 :keep 315567360 :es_index year  :cfunc cfunc}]
-                      :expire-every 172800})]
+      cfunc   [{:func folds/mean    :name avg}
+               {:func folds/minimum :name min}
+               {:func folds/maximum :name max}]
+      tiers   {:rra [{:step 20   :keep 86400     :es_index day   :cfunc cfunc}
+                     {:step 600  :keep 5356800   :es_index month :cfunc cfunc}
+                     {:step 3600 :keep 315567360 :es_index year  :cfunc cfunc}]
+               :expire-every 172800}
+      update  (batch 1000 10 (samplerr/es-index {:es_type "samplerr" :es_conn elastic))]
   (streams
     (where (tagged "collectd")
-       rrdtool2016)))
+       (samplerr/archive tiers update))))
 ```
 
 This will index all events tagged `collectd`, one document per `host`,`service`, `step`, and `cfunc`.

@@ -80,37 +80,20 @@
   [& argv]
   (apply esr/connect argv))
 
-(defn es-dummy
-  "bulk index to ES"
-  [{:keys [es_conn es_type es_index timestamping message]
-    :as foo
-               :or {es_index "sampler"
-                    es_type "sampler"
-                    message true
-                    timestamping :day}} children]
-  (streams/with foo children))
   
-(defn make-index-timestamper [index]
-  (let [formatter (clj-time.format/formatter (eval index))]
-    (fn [date]
-      (clj-time.format/unparse formatter date))))
-
-(defn index-name [event]
+(defn make-index-timestamper [event]
   (let [formatter (clj-time.format/formatter (eval (get event "es_index")))]
     (fn [date]
       (clj-time.format/unparse formatter date))))
 
 (defn es-index
   "bulk index to ES"
-  [{:keys [es_conn es_type es_index timestamping message]
-               :or {es_index "sampler"
-                    es_type "sampler"
-                    message true
-                    timestamping :day}} & children]
-  (let [index-namer (make-index-timestamper es_index)]
+  [{:keys [es_conn es_type message]
+               :or {es_type "sampler"
+                    message true}} & children]
     (fn [events]
-      (let [esets (group-by (fn [e] (let [i (index-name e)]
-                              (i
+      (let [esets (group-by (fn [e] (let [index-namer (make-index-timestamper e)]
+                              (index-namer
                                (clj-time.format/parse format-iso8601 
                                                       (get e "@timestamp")))))
                             (riemann-to-elasticsearch events message))]
@@ -139,7 +122,7 @@
                   (debug "Failed: " failed))
                 (catch Exception e
                   ;(error "Unable to bulk index:" e)))))) (streams/call-rescue events children)))))
-                  (error "Unable to bulk index:" e))))))))))
+                  (error "Unable to bulk index:" e)))))))))
 
 (defn ^{:private true} resource-as-json [resource-name]
   (json/parse-string (slurp (io/resource resource-name))))
@@ -196,12 +179,12 @@
   [{:keys [writer cfunc step batch es_index] :as args :or {batch 1000 cfunc {:name "avg" :func riemann.folds/mean}}} & children]
   (let [cfunc_n (:name cfunc)
         cfunc_f (:func cfunc)
-        writer (streams/batch batch step (es-index (select-keys args [:es_index :es_type :es_conn])))]
+        writer (streams/batch batch step (es-index (select-keys args [:es_type :es_conn])))]
     (streams/with {:step step :cfunc cfunc_n :ttl (* step 2) :es_index es_index}
       (streams/by [:host :service]
         (streams/fixed-offset-time-window step
           (streams/smap cfunc_f
-            writer))))))
+            (apply streams/sdo children)))))))
 
 (defn archive-n
   "takes map of archive parameters and maps to archive-n-cf for all cfuncs"
