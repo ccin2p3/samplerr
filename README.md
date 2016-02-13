@@ -37,7 +37,9 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
 (let [day    "'samplerr-'YYYY.MM.DD"
       month  "'samplerr-'YYYY.MM"
       year   "'sampler-'YYYY"
-      cfunc  {:func folds/mean :name average}
+      cfunc  [{:func folds/mean :name avg}
+              {:func folds/minimum :name min}
+              {:func folds/maximum :name max}]
       elastic (samplerr/connect "http://localhost:9200")
       rrdtool2016 (samplerr/archive 
                     { :elastic (samplerr/connect "http://127.0.0.1:9200")
