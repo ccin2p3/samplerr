@@ -20,10 +20,6 @@
                                   v))) 
                                 {} key-map))
 
-(defn make-index-timestamper [index]
-  (let [formatter (clj-time.format/formatter (eval index))]
-    (fn [date]
-      (clj-time.format/unparse formatter date))))
 
 (def ^{:private true} format-iso8601
   (clj-time.format/with-zone (clj-time.format/formatters :date-time-no-ms)
@@ -94,6 +90,16 @@
                     timestamping :day}} children]
   (streams/with foo children))
   
+(defn make-index-timestamper [index]
+  (let [formatter (clj-time.format/formatter (eval index))]
+    (fn [date]
+      (clj-time.format/unparse formatter date))))
+
+(defn index-name [event]
+  (let [formatter (clj-time.format/formatter (eval (get event "es_index")))]
+    (fn [date]
+      (clj-time.format/unparse formatter date))))
+
 (defn es-index
   "bulk index to ES"
   [{:keys [es_conn es_type es_index timestamping message]
@@ -103,23 +109,23 @@
                     timestamping :day}} & children]
   (let [index-namer (make-index-timestamper es_index)]
     (fn [events]
-      (let [esets (group-by (fn [e] 
-                              (index-namer 
+      (let [esets (group-by (fn [e] (let [i (index-name e)]
+                              (i
                                (clj-time.format/parse format-iso8601 
-                                                      (get e "@timestamp"))))
+                                                      (get e "@timestamp")))))
                             (riemann-to-elasticsearch events message))]
         (doseq [es_index (keys esets)]
           (let [raw (get esets es_index)
                 bulk-create-items
                 (interleave (map #(if-let [id (get % "_id")]
-                                    {:create {:_type es_type :_id id}}
-                                    {:create {:_type es_type}}
+                                    {:create {:_type es_type :_index es_index :_id id}}
+                                    {:create {:_type es_type :_index es_index}}
                                     )
                                  raw)
                             raw)]
             (when (seq bulk-create-items)
               (try
-                (let [res (eb/bulk-with-index es_conn es_index bulk-create-items)
+                (let [res (eb/bulk es_conn bulk-create-items)
                       ;; maybe we should group by http status instead:
                       ; (group-by :status (map :create (:items res)))
                       by_status (frequencies (map :status (map :create (:items res))))
@@ -128,7 +134,7 @@
                       failed (filter :error (map :create (:items res)))]
                   ;(info "elasticized" total "/" (count succ) "/" (count failed) " (total/succ/fail) items to index " es_index "in " (:took res) "ms")
                   (info "elasticized" total " (total) " by_status " docs to " es_index "in " (:took res) "ms")
-                  ;(info (vec bulk-create-items))
+                  ;(info bulk-create-items)
                   ;(info res)
                   (debug "Failed: " failed))
                 (catch Exception e
@@ -187,11 +193,11 @@
 
 (defn archive-n-cf
   "takes map of archive parameters and sends time-aggregated data to elasticsearch"
-  [{:keys [writer cfunc step batch] :as args :or {batch 1000 cfunc {:name "avg" :func riemann.folds/mean}}} & children]
+  [{:keys [writer cfunc step batch es_index] :as args :or {batch 1000 cfunc {:name "avg" :func riemann.folds/mean}}} & children]
   (let [cfunc_n (:name cfunc)
         cfunc_f (:func cfunc)
         writer (streams/batch batch step (es-index (select-keys args [:es_index :es_type :es_conn])))]
-    (streams/with {:step step :cfunc cfunc_n :ttl (* step 2)} 
+    (streams/with {:step step :cfunc cfunc_n :ttl (* step 2) :es_index es_index}
       (streams/by [:host :service]
         (streams/fixed-offset-time-window step
           (streams/smap cfunc_f
