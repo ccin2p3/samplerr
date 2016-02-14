@@ -48,7 +48,8 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
       update  (batch 1000 10 (samplerr/es-index {:es_type "samplerr" :es_conn elastic))]
   (streams
     (where (tagged "collectd")
-       (samplerr/archive tiers update))))
+      (by [:host :service]
+       (samplerr/archive tiers update)))))
 ```
 
 This will index all events tagged `collectd`, one document per `host`,`service`, `step`, and `cfunc`.

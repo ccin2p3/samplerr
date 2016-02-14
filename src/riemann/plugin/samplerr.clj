@@ -176,15 +176,15 @@
 
 (defn archive-n-cf
   "takes map of archive parameters and sends time-aggregated data to elasticsearch"
-  [{:keys [writer cfunc step batch es_index] :as args :or {batch 1000 cfunc {:name "avg" :func riemann.folds/mean}}} & children]
+  [{:keys [cfunc step es_index] :as args :or {cfunc {:name "avg" :func riemann.folds/mean}}} & children]
   (let [cfunc_n (:name cfunc)
-        cfunc_f (:func cfunc)
-        writer (streams/batch batch step (es-index (select-keys args [:es_type :es_conn])))]
+        cfunc_f (:func cfunc)]
     (streams/with {:step step :cfunc cfunc_n :ttl (* step 2) :es_index es_index}
-      (streams/by [:host :service]
+      ;(streams/by [:host :service]
         (streams/fixed-offset-time-window step
           (streams/smap cfunc_f
-            (apply streams/sdo children)))))))
+            (streams/smap #(assoc % :service (str (:service %) "/" cfunc_n "/" step))
+              (apply streams/sdo children)))))))
 
 (defn archive-n
   "takes map of archive parameters and maps to archive-n-cf for all cfuncs"
