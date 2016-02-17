@@ -174,17 +174,48 @@
             (rammer e
               (apply streams/smap riemann_folds_func children)))))))
 
+; cfuncs
+(defn maximum
+  [interval & children]
+          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) event (if (>= (:metric event) (:metric acc)) event acc)))
+              (streams/coalesce interval
+                (streams/smap #(first %) (apply streams/sdo children)))))
+
+(defn sum
+  [interval & children]
+          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) event (assoc event :metric (+ (:metric acc) (:metric event)))))
+              (streams/coalesce interval
+                (streams/smap #(first %) (apply streams/sdo children)))))
+
+(defn counter
+  [interval & children]
+          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) (assoc event :metric 1) (assoc event :metric (+ 1 (:metric acc))))) {:metric 0}
+              (streams/coalesce interval
+                (streams/smap #(first %) (apply streams/sdo children)))))
+
+(defn average
+  [interval & children]
+          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) (assoc event :sum (:metric event) :count 1) (assoc event :sum (+ (:sum acc) (:metric event)) :count (+ 1 (:count acc))))) nil
+            (streams/smap #(assoc % :metric (/ (:sum %) (:count %)))
+              (streams/coalesce interval
+                (streams/smap #(first %) (apply streams/sdo children))))))
+
+(defn minimum
+  [interval & children]
+          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) event (if (<= (:metric event) (:metric acc)) event acc)))
+              (streams/coalesce interval
+                (streams/smap #(first %) (apply streams/sdo children)))))
+
 (defn archive-n-cf
   "takes map of archive parameters and sends time-aggregated data to elasticsearch"
   [{:keys [cfunc step es_index] :as args :or {cfunc {:name "avg" :func riemann.folds/mean}}} & children]
   (let [cfunc_n (:name cfunc)
         cfunc_f (:func cfunc)]
-    (streams/with {:step step :cfunc cfunc_n :ttl (* step 2) :es_index es_index}
-      ;(streams/by [:host :service]
-        (streams/fixed-offset-time-window step
-          (streams/smap cfunc_f
-            (streams/smap #(assoc % :service (str (:service %) "/" cfunc_n "/" step))
-              (apply streams/sdo children)))))))
+    (streams/with {:step step :cfunc cfunc_n :ttl step :es_index es_index}
+      (streams/where metric
+        (cfunc_f step
+          (streams/smap #(assoc % :service (str (:service %) "/" cfunc_n "/" step))
+            (apply streams/sdo children)))))))
 
 (defn archive-n
   "takes map of archive parameters and maps to archive-n-cf for all cfuncs"

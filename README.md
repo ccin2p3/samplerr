@@ -38,9 +38,9 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
       month   "'samplerr-'YYYY.MM"
       year    "'sampler-'YYYY"
       elastic (samplerr/connect "http://localhost:9200")
-      cfunc   [{:func folds/mean    :name avg}
-               {:func folds/minimum :name min}
-               {:func folds/maximum :name max}]
+      cfunc   [{:func samplerr/average :name avg}
+               {:func samplerr/minimum :name min}
+               {:func samplerr/maximum :name max}]
       tiers   {:rra [{:step 20   :keep 86400     :es_index day   :cfunc cfunc}
                      {:step 600  :keep 5356800   :es_index month :cfunc cfunc}
                      {:step 3600 :keep 315567360 :es_index year  :cfunc cfunc}]
