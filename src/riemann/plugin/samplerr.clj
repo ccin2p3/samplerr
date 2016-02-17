@@ -195,7 +195,7 @@
 
 (defn average
   [interval & children]
-          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) (assoc event :sum (:metric event) :count 1) (assoc event :sum (+ (:sum acc) (:metric event)) :count (+ 1 (:count acc))))) nil
+          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) (assoc event :sum (:metric event) :count 1) (assoc event :sum (+ (:sum acc) (:metric event)) :count (+ 1 (:count acc)) :time (:time acc)))) nil
             (streams/smap #(assoc % :metric (/ (:sum %) (:count %)))
               (streams/coalesce interval
                 (streams/smap #(first %) (apply streams/sdo children))))))
