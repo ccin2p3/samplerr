@@ -44,7 +44,18 @@
 
 ## aliasing
 
-* (samplerr/periodically-expire 86400 [{:es_index "'samplerr-'YYYY.MM.DD" :keep 172800}
-                                       {:es_index "'samplerr-'YYYY.MM"    :keep 5270400}
-                                       {:es_index "'samplerr-'YYYY"       :keep -1}])
+* (samplerr/periodically-shift <periodicity> <index-prefix> <alias-prefix> <retention-policies>)
 
+* (samplerr/periodically-shift 86400 samplerr-i samplerr-a [{:es_index "YYYY.MM.DD" :keep 172800}
+                                                            {:es_index "YYYY.MM"    :keep 5270400}
+                                                            {:es_index "YYYY"}])
+* list indices
+
+(list-indices prefix)
+
+(require '[clojurewerkz.elastisch.rest.index :as esri])
+(def elastic (samplerr/connect "http://localhost:9200"))
+
+(keys (esri/get-aliases elastic "samplerr-*"))
+
+(def

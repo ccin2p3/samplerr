@@ -8,7 +8,10 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojurewerkz.elastisch.rest.bulk :as eb]
+            [clojurewerkz.elastisch.rest.index :as esri]
+            [clojurewerkz.elastisch.rest.document :as esrd]
             [clojurewerkz.elastisch.rest :as esr]
+            [riemann.config]
             [riemann.streams :as streams]))
 
 (defn ^{:private true} keys-to-map [key-map] 
@@ -226,4 +229,42 @@
   "takes vector of archives and generates (count vector) archive-n streams"
   [{:keys [rra] :or {rra [{:step 10 :keep 86400}{:step 600 :keep 315567360}]}} & children]
   (apply streams/sdo (map #(apply archive-n % children) rra)))
+
+;;;
+;;; alias shifting code
+;;;
+
+(defn list-indices
+  "lists all indices from an elasticsearch cluster having given prefix"
+  [elastic prefix]
+  (keys (esri/get-aliases elastic (str prefix "*"))))
+
+(defn get-index-metadata
+  "returns index metadata"
+  [elastic index]
+  (esrd/get elastic index "meta" "samplerr"))
+
+(defn flagged?
+  "returns true if index is flagged as expired"
+  [elastic index]
+  (true? ((comp :expired :_source) (get-index-metadata elastic index))))
+
+(defn index-exists?
+  "returns true if index exists"
+  [elastic index]
+  (esri/exists? elastic index))
+
+(defn get-time-format
+  "returns the first time format in retention policy map that matches datestr or nil
+  example: (get-time-format \"2016\" [{:tf \"YYYY.MM.DD\" :ttl 86400} {:tf \"YYYY\" :ttl 315567360}])
+  will return {:tf \"YYYY\" :ttl 315567360}"
+  [datestr retention-policies]
+  (first (filter #(matches-timeformat? datestr (:tf %)) retention-policies)))
+
+(defn matches-timeformat?
+  "returns true if datestr matches timeformat"
+  [datestr timeformat]
+  (try (clj-time.format/parse (clj-time.format/formatter timeformat) datestr) (catch IllegalArgumentException ex false)))
+
+
 
