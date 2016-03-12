@@ -254,9 +254,10 @@
   [elastic index]
   (esri/exists? elastic index))
 
-(defn get-time-format
-  "returns the first time format in retention policy map that matches datestr or nil
-  example: (get-time-format \"2016\" [{:tf \"YYYY.MM.DD\" :ttl 86400} {:tf \"YYYY\" :ttl 315567360}])
+; TODO: should return an additional key which is the parsed clj-time object
+(defn get-retention-policy
+  "returns the first retention policy that matches datestr or nil
+  example: (get-retention-policy \"2016\" [{:tf \"YYYY.MM.DD\" :ttl 86400} {:tf \"YYYY\" :ttl 315567360}])
   will return {:tf \"YYYY\" :ttl 315567360}"
   [datestr retention-policies]
   (first (filter #(matches-timeformat? datestr (:tf %)) retention-policies)))
@@ -266,5 +267,14 @@
   [datestr timeformat]
   (try (clj-time.format/parse (clj-time.format/formatter timeformat) datestr) (catch IllegalArgumentException ex false)))
 
-
+(defn is-expired?
+  "returns true if datestr matches an expired retention policy"
+  [datestr retention-policies]
+  (let [retention-policy (get-retention-policy datestr retention-policies)
+        tf (:tf retention-policy)
+        ttl (:ttl retention-policy)
+        parsed-time (clj-time.format/parse (clj-time.format/formatter tf) datestr)
+        now (clj-time.core/now)
+        expiration (clj-time.core/minus now ttl)]
+    (clj-time.core/before? parsed-time expiration)))
 
