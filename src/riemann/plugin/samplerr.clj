@@ -301,6 +301,13 @@
 (defn get-aliases
   "returns aliases of index or empty list"
   [elastic index]
-  ;((comp keys (keyword index) :aliases)(esri/get-aliases elastic index)))
   (keys ((comp :aliases (keyword index))(esri/get-aliases elastic index))))
+
+(defn move-aliases
+  "moves aliases from src-index to dst-index"
+  [elastic src-index dst-index]
+  (let [src-aliases (get-aliases elastic src-index)
+        src-actions (map #(hash-map :remove (hash-map :index src-index :alias %)) src-aliases)
+        dst-actions (map #(hash-map :add    (hash-map :index dst-index :alias %)) src-aliases)]
+    (esri/update-aliases elastic src-actions dst-actions)))
 
