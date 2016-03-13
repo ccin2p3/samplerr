@@ -231,6 +231,14 @@
   (apply streams/sdo (map #(apply archive-n % children) rra)))
 
 ;;;
+;;; foreign commodity functions
+;;; that need license checking
+
+;source http://stackoverflow.com/questions/8641305/find-index-of-an-element-matching-a-predicate-in-clojure
+(defn indices [pred coll]
+  (keep-indexed #(when (pred %2) %1) coll))
+
+;;;
 ;;; alias shifting code
 ;;;
 
@@ -249,18 +257,30 @@
   [elastic index]
   (true? ((comp :expired :_source) (get-index-metadata elastic index))))
 
+(defn flag
+  "flags index as expired"
+  [elastic index]
+  (esrd/put elastic index "meta" "samplerr" {:expired true}))
+
 (defn index-exists?
   "returns true if index exists"
   [elastic index]
   (esri/exists? elastic index))
 
-; TODO: should return an additional key which is the parsed clj-time object
+; TODO: should return an additional key which is the parsed clj-time object so we don't need to parse time again
 (defn get-retention-policy
   "returns the first retention policy that matches datestr or nil
   example: (get-retention-policy \"2016\" [{:tf \"YYYY.MM.DD\" :ttl 86400} {:tf \"YYYY\" :ttl 315567360}])
   will return {:tf \"YYYY\" :ttl 315567360}"
   [datestr retention-policies]
   (first (filter #(matches-timeformat? datestr (:tf %)) retention-policies)))
+
+(defn get-retention-policy-index
+  "returns the first retention policy's index that matches datestr or nil
+  example: (get-retention-policy \"2016\" [{:tf \"YYYY.MM.DD\" :ttl 86400} {:tf \"YYYY\" :ttl 315567360}])
+  will return {:tf \"YYYY\" :ttl 315567360}"
+  [datestr retention-policies]
+  (first (indices #(matches-timeformat? datestr (:tf %)) retention-policies)))
 
 (defn matches-timeformat?
   "returns true if datestr matches timeformat"
@@ -277,4 +297,10 @@
         now (clj-time.core/now)
         expiration (clj-time.core/minus now ttl)]
     (clj-time.core/before? parsed-time expiration)))
+
+(defn get-aliases
+  "returns aliases of index or empty list"
+  [elastic index]
+  ;((comp keys (keyword index) :aliases)(esri/get-aliases elastic index)))
+  (keys ((comp :aliases (keyword index))(esri/get-aliases elastic index))))
 
