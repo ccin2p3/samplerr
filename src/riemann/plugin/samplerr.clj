@@ -362,7 +362,8 @@
                       (move-aliases elastic index next-index)
                       (add-alias elastic next-index (str alias-prefix datestr)))
                     (throw (Exception. (str "can't move aliases from " index " to missing " next-index)))))
-                (remove-aliases elastic index))))
+                (if (get-aliases elastic index)
+                  (remove-aliases elastic index)))))
           (if (not (get-aliases elastic index))
             (add-alias elastic index (str alias-prefix datestr))))))))
 
