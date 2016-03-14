@@ -44,6 +44,10 @@
 
 ## aliasing
 
+* use filtered aliases in ES to avoid having duplicate entries e.g. for daily indices between 2016.04 and 2016.04.23 when search query spans multiple days
+* sort retention-policies
+* verify overlap between periods
+
 * (samplerr/periodically-shift <periodicity> <index-prefix> <alias-prefix> <retention-policies>)
 
 * (samplerr/periodically-shift 86400 samplerr-i samplerr-a [{:es_index "YYYY.MM.DD" :keep 172800}

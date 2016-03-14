@@ -245,7 +245,7 @@
 (defn list-indices
   "lists all indices from an elasticsearch cluster having given prefix"
   [elastic prefix]
-  (keys (esri/get-aliases elastic (str prefix "*"))))
+  (map name (keys (esri/get-aliases elastic (str prefix "*")))))
 
 (defn get-index-metadata
   "returns index metadata"
@@ -262,10 +262,20 @@
   [elastic index]
   (esrd/put elastic index "meta" "samplerr" {:expired true}))
 
+(defn unflag
+  "flags index as expired"
+  [elastic index]
+  (esrd/put elastic index "meta" "samplerr" {:expired false}))
+
 (defn index-exists?
   "returns true if index exists"
   [elastic index]
   (esri/exists? elastic index))
+
+(defn matches-timeformat?
+  "returns true if datestr matches timeformat"
+  [datestr timeformat]
+  (try (clj-time.format/parse (clj-time.format/formatter timeformat) datestr) (catch IllegalArgumentException ex false)))
 
 ; TODO: should return an additional key which is the parsed clj-time object so we don't need to parse time again
 (defn get-retention-policy
@@ -282,10 +292,17 @@
   [datestr retention-policies]
   (first (indices #(matches-timeformat? datestr (:tf %)) retention-policies)))
 
-(defn matches-timeformat?
-  "returns true if datestr matches timeformat"
-  [datestr timeformat]
-  (try (clj-time.format/parse (clj-time.format/formatter timeformat) datestr) (catch IllegalArgumentException ex false)))
+(defn parse-retention-policy-date
+  "parses datestr using index n of retention-policies"
+  [datestr retention-policies n]
+  (let [tf (:tf (nth retention-policies n))]
+    (clj-time.format/parse (clj-time.format/formatter tf) datestr)))
+
+(defn format-retention-policy-date
+  "formats dateobj using index n of retention-polices"
+  [dateobj retention-policies n]
+  (let [tf (:tf (nth retention-policies n))]
+    (clj-time.format/unparse (clj-time.format/formatter tf) dateobj)))
 
 (defn is-expired?
   "returns true if datestr matches an expired retention policy"
@@ -303,6 +320,8 @@
   [elastic index]
   (keys ((comp :aliases (keyword index))(esri/get-aliases elastic index))))
 
+(defmacro dbg[x] `(let [x# ~x] (println "dbg:" '~x "=" x#) x#))
+
 (defn move-aliases
   "moves aliases from src-index to dst-index"
   [elastic src-index dst-index]
@@ -310,4 +329,46 @@
         src-actions (map #(hash-map :remove (hash-map :index src-index :alias %)) src-aliases)
         dst-actions (map #(hash-map :add    (hash-map :index dst-index :alias %)) src-aliases)]
     (esri/update-aliases elastic src-actions dst-actions)))
+
+(defn add-alias
+  "adds alias to index"
+  [elastic index es-alias]
+  (esri/update-aliases elastic {:add {:index index :alias es-alias}}))
+
+(defn remove-aliases
+  "removes all aliases from index"
+  [elastic index]
+  (let [aliases (get-aliases elastic index)
+        actions (map #(hash-map :remove (hash-map :index index :alias %)) aliases)]
+    (esri/update-aliases elastic actions)))
+
+(defn shift-alias
+  "matches index with its corresponding retention policy. if expired, shifts its existing aliases to next retention policy. else adds alias if necessary"
+  [elastic index index-prefix alias-prefix retention-policies]
+  (if (not (flagged? elastic index))
+    (let [datestr (clojure.string/replace index (re-pattern (str "^" index-prefix)) "")
+          retention-policy-index (get-retention-policy-index datestr retention-policies)]
+      (if retention-policy-index
+        (if (is-expired? datestr retention-policies)
+          (do
+            ;(flag elastic index)
+            (let [next-retention-policy-index (inc retention-policy-index)]
+              (if (contains? retention-policies next-retention-policy-index)
+                (let [index-start-date (parse-retention-policy-date datestr retention-policies retention-policy-index)
+                      next-date (format-retention-policy-date index-start-date retention-policies next-retention-policy-index)
+                      next-index (str index-prefix next-date)]
+                  (if (index-exists? elastic next-index)
+                    (if (get-aliases elastic index)
+                      (move-aliases elastic index next-index)
+                      (add-alias elastic next-index (str alias-prefix datestr)))
+                    (throw (Exception. (str "can't move aliases from " index " to missing " next-index)))))
+                (remove-aliases elastic index))))
+          (if (not (get-aliases elastic index))
+            (add-alias elastic index (str alias-prefix datestr))))))))
+
+(defn shift-aliases
+  "maps shift-alias to all indices from elastic connection matching index-prefix"
+  [elastic index-prefix alias-prefix retention-policies]
+  (let [indices (list-indices elastic (str index-prefix "*"))]
+    (map #(shift-alias elastic % index-prefix alias-prefix retention-policies) indices)))
 
