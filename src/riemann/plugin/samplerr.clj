@@ -2,6 +2,7 @@
   "A riemann plugin to downsample data in a RRDTool fashion into elasticsearch"
   (:use [clojure.tools.logging :only (info error debug warn)])
   (:require [cheshire.core :as json]
+            [overtone.at-at :as at]
             [clj-time.format]
             [clj-time.core]
             [clj-time.coerce]
@@ -386,12 +387,29 @@
                   (throw (Exception. (str "can't move aliases from " index " to missing " next-index)))))
               (if (get-aliases elastic index)
                 (remove-aliases elastic index)))
-            (if (not (get-aliases elastic index))
-              (add-alias elastic index (str alias-prefix datestr)))))))))
+              (add-alias elastic index (str alias-prefix datestr))))))))
 
-(defn shift-aliases
+(defn shift-aliases-with-map
   "maps shift-alias to all indices from elastic connection matching index-prefix"
   [elastic index-prefix alias-prefix retention-policies]
   (let [indices (list-indices elastic (str index-prefix "*"))]
     (map #(shift-alias elastic % index-prefix alias-prefix retention-policies) indices)))
+
+(defn shift-aliases
+  "maps shift-alias to all indices from elastic connection matching index-prefix"
+  [elastic index-prefix alias-prefix retention-policies]
+  (loop [indices (list-indices elastic (str index-prefix "*"))]
+    (let [current-index (first indices)
+          remaining-indices (rest indices)]
+      (shift-alias elastic current-index index-prefix alias-prefix retention-policies)
+      (if (empty? remaining-indices)
+        (println "done")
+        (recur remaining-indices)))))
+
+(defn periodically-shift
+  "periodically shifts aliases"
+  [milliseconds elastic index-prefix alias-prefix retention-policies]
+  (let [piscine (at/mk-pool)]
+    (at/every milliseconds #(shift-aliases elastic index-prefix alias-prefix retention-policies) piscine)))
+
 
