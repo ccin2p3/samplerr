@@ -402,8 +402,7 @@
     (let [current-index (first indices)
           remaining-indices (rest indices)]
       (shift-alias elastic current-index index-prefix alias-prefix retention-policies)
-      (if (empty? remaining-indices)
-        (println "done")
+      (if (not (empty? remaining-indices))
         (recur remaining-indices)))))
 
 (defn periodically-shift
@@ -411,5 +410,4 @@
   [milliseconds elastic index-prefix alias-prefix retention-policies]
   (let [piscine (at/mk-pool)]
     (at/every milliseconds #(shift-aliases elastic index-prefix alias-prefix retention-policies) piscine)))
-
 
