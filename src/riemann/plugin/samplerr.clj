@@ -86,46 +86,40 @@
 
   
 (defn make-index-timestamper [event]
-  (let [formatter (clj-time.format/formatter (eval (get event "es_index")))]
+  (let [formatter (clj-time.format/formatter (eval (get event "tf")))]
     (fn [date]
       (clj-time.format/unparse formatter date))))
 
-(defn es-index
+(defn persist
   "bulk index to ES"
-  [{:keys [es_conn es_type message]
-               :or {es_type "sampler"
+  [{:keys [conn index-type index-prefix message]
+               :or {index-type "samplerr" index-prefix ".samplerr"
                     message true}} & children]
     (fn [events]
       (let [esets (group-by (fn [e] (let [index-namer (make-index-timestamper e)]
-                              (index-namer
+                              (str index-prefix (index-namer
                                (clj-time.format/parse format-iso8601 
-                                                      (get e "@timestamp")))))
+                                                      (get e "@timestamp"))))))
                             (riemann-to-elasticsearch events message))]
         (doseq [es_index (keys esets)]
           (let [raw (get esets es_index)
                 bulk-create-items
                 (interleave (map #(if-let [id (get % "_id")]
-                                    {:create {:_type es_type :_index es_index :_id id}}
-                                    {:create {:_type es_type :_index es_index}}
+                                    {:create {:_type index-type :_index es_index :_id id}}
+                                    {:create {:_type index-type :_index es_index}}
                                     )
                                  raw)
                             raw)]
             (when (seq bulk-create-items)
               (try
-                (let [res (eb/bulk es_conn bulk-create-items)
-                      ;; maybe we should group by http status instead:
-                      ; (group-by :status (map :create (:items res)))
+                (let [res (eb/bulk conn bulk-create-items)
                       by_status (frequencies (map :status (map :create (:items res))))
                       total (count (:items res))
                       succ (filter :_version (map :create (:items res)))
                       failed (filter :error (map :create (:items res)))]
-                  ;(info "elasticized" total "/" (count succ) "/" (count failed) " (total/succ/fail) items to index " es_index "in " (:took res) "ms")
                   (info "elasticized" total " (total) " by_status " docs to " es_index "in " (:took res) "ms")
-                  ;(info bulk-create-items)
-                  ;(info res)
                   (debug "Failed: " failed))
                 (catch Exception e
-                  ;(error "Unable to bulk index:" e)))))) (streams/call-rescue events children)))))
                   (error "Unable to bulk index:" e)))))))))
 
 (defn ^{:private true} resource-as-json [resource-name]
@@ -210,26 +204,27 @@
               (streams/coalesce interval
                 (streams/smap #(first %) (apply streams/sdo children)))))
 
-(defn archive-n-cf
+(defn down-n-cf
   "takes map of archive parameters and sends time-aggregated data to elasticsearch"
-  [{:keys [cfunc step es_index] :as args :or {cfunc {:name "avg" :func riemann.folds/mean}}} & children]
+  [{:keys [cfunc step tf] :as args :or {cfunc {:name "avg" :func average}}} & children]
   (let [cfunc_n (:name cfunc)
-        cfunc_f (:func cfunc)]
-    (streams/with {:step step :cfunc cfunc_n :ttl step :es_index es_index}
+        cfunc_f (:func cfunc)
+        seconds (clj-time.core/in-seconds step)]
+    (streams/with {:step seconds :cfunc cfunc_n :ttl seconds :tf tf}
       (streams/where metric
-        (cfunc_f step
+        (cfunc_f seconds
           (streams/smap #(assoc % :service (str (:service %) "/" cfunc_n "/" step))
             (apply streams/sdo children)))))))
 
-(defn archive-n
-  "takes map of archive parameters and maps to archive-n-cf for all cfuncs"
+(defn down-n
+  "takes map of archive parameters and maps to down-n-cf for all cfuncs"
   [{:keys [cfunc] :as args} & children]
-    (apply streams/sdo (map #(apply archive-n-cf (assoc args :cfunc %) children) cfunc)))
+    (apply streams/sdo (map #(apply down-n-cf (assoc args :cfunc %) children) cfunc)))
 
-(defn archive
-  "takes vector of archives and generates (count vector) archive-n streams"
-  [{:keys [rra] :or {rra [{:step 10 :keep 86400}{:step 600 :keep 315567360}]}} & children]
-  (apply streams/sdo (map #(apply archive-n % children) rra)))
+(defn down
+  "takes vector of archives and generates (count vector) down-n streams"
+  [archives & children]
+  (apply streams/sdo (map #(apply down-n % children) archives)))
 
 ;;;
 ;;; foreign commodity functions
@@ -395,7 +390,7 @@
   (let [indices (list-indices elastic (str index-prefix "*"))]
     (map #(shift-alias elastic % index-prefix alias-prefix retention-policies) indices)))
 
-(defn shift-aliases
+(defn rotate
   "maps shift-alias to all indices from elastic connection matching index-prefix"
   [elastic index-prefix alias-prefix retention-policies]
   (loop [indices (list-indices elastic (str index-prefix "*"))]
@@ -405,9 +400,10 @@
       (if (not (empty? remaining-indices))
         (recur remaining-indices)))))
 
-(defn periodically-shift
-  "periodically shifts aliases"
-  [milliseconds elastic index-prefix alias-prefix retention-policies]
-  (let [piscine (at/mk-pool)]
-    (at/every milliseconds #(shift-aliases elastic index-prefix alias-prefix retention-policies) piscine)))
+(defn rotate-every
+  "periodically rotates aliases"
+  [interval elastic index-prefix alias-prefix retention-policies]
+  (let [piscine (at/mk-pool)
+        milliseconds (clj-time.core/in-millis interval)]
+    (at/every milliseconds #(rotate elastic index-prefix alias-prefix retention-policies) piscine)))
 
