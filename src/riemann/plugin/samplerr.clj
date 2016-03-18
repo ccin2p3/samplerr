@@ -424,12 +424,6 @@
         milliseconds (clj-time.core/in-millis interval)]
     (at/every milliseconds #(purge elastic index-prefix retention-policies) piscine)))
 
-(defn shift-aliases-with-map
-  "maps shift-alias to all indices from elastic connection matching index-prefix"
-  [elastic index-prefix alias-prefix retention-policies]
-  (let [indices (list-indices elastic (str index-prefix "*"))]
-    (map #(shift-alias elastic % index-prefix alias-prefix retention-policies) indices)))
-
 (defn rotate
   "maps shift-alias to all indices from elastic connection matching index-prefix"
   [elastic index-prefix alias-prefix retention-policies]
