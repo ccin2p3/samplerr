@@ -369,7 +369,6 @@
 (defn shift-alias
   "matches index with its corresponding retention policy. if expired, shifts its existing aliases to next retention policy. else adds alias if necessary"
   [elastic index index-prefix alias-prefix retention-policies]
-  (if (not (flagged? elastic index))
     (let [datestr (clojure.string/replace index (re-pattern (str "^" index-prefix)) "")
           retention-policy-index (get-retention-policy-index datestr retention-policies)
           dateobj (parse-retention-policy-date datestr retention-policies retention-policy-index)]
@@ -379,7 +378,6 @@
               next-index (str index-prefix next-date)]
           (if (is-expired? datestr retention-policies)
             (do
-              ;(flag elastic index)
               (if next-date
                 (if (index-exists? elastic next-index)
                   (if (get-aliases elastic index)
@@ -388,7 +386,7 @@
                   (throw (Exception. (str "can't move aliases from " index " to missing " next-index)))))
               (if (get-aliases elastic index)
                 (remove-aliases elastic index)))
-              (add-alias elastic index (str alias-prefix datestr))))))))
+              (add-alias elastic index (str alias-prefix datestr)))))))
 
 (defn shift-aliases-with-map
   "maps shift-alias to all indices from elastic connection matching index-prefix"
