@@ -165,15 +165,11 @@ riemann started exactly 2 days ago. `samplerr/rotate` fires up and processes the
 * `.sampler-2014.12` is two months old: expired! move its aliases to `.samplerr-2014`
 * …
 
-#### `(purge es-conn-handle index-prefix alias-prefix archives)`
-
-**UNIMPLEMENTED**
+#### `(purge es-conn-handle index-prefix archives)`
 
 This function will **DELETE** expired indices. Use with care.
 
-#### `(purge-every periodicity es-conn-handle index-prefix alias-prefix archives)`
-
-**UNIMPLEMENTED**
+#### `(purge-every periodicity es-conn-handle index-prefix archives)`
 
 This function will call `purge` periodically.
 

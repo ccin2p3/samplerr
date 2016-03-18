@@ -339,6 +339,7 @@
 (defn move-aliases
   "moves aliases from src-index to dst-index"
   [elastic src-index dst-index]
+  (info "transfer aliases from" src-index "to" dst-index)
   (let [src-aliases (get-aliases elastic src-index)
         src-actions (map #(hash-map :remove (hash-map :index src-index :alias %)) src-aliases)
         dst-actions (map #(hash-map :add    (hash-map :index dst-index :alias %)) src-aliases)]
@@ -347,11 +348,13 @@
 (defn add-alias
   "adds alias to index"
   [elastic index es-alias]
+  (info "add alias" es-alias "->" index)
   (esri/update-aliases elastic {:add {:index index :alias es-alias}}))
 
 (defn remove-aliases
   "removes all aliases from index"
   [elastic index]
+  (info "remove all aliases from" index)
   (let [aliases (get-aliases elastic index)
         actions (map #(hash-map :remove (hash-map :index index :alias %)) aliases)]
     (esri/update-aliases elastic actions)))
@@ -387,6 +390,39 @@
             (if (get-aliases elastic index)
               (remove-aliases elastic index)))
           (add-alias elastic index (str alias-prefix datestr)))))))
+
+(defn delete-index
+  "deletes index"
+  [elastic index]
+  (info "delete index" index)
+  (esri/delete elastic index))
+
+(defn purge-index
+  "deletes index if it matches a timeformat in retention-policies and is expired"
+  [elastic index index-prefix retention-policies]
+  (let [datestr (clojure.string/replace index (re-pattern (str "^" index-prefix)) "")
+        retention-policy-index (get-retention-policy-index datestr retention-policies)
+        dateobj (parse-retention-policy-date datestr retention-policies retention-policy-index)]
+    (if retention-policy-index
+      (if (is-expired? datestr retention-policies)
+        (delete-index elastic index)))))
+
+(defn purge
+  "deletes all indices matching index-prefix and that are expired according to retention-policies"
+  [elastic index-prefix retention-policies]
+  (loop [indices (list-indices elastic (str index-prefix "*"))]
+    (let [current-index (first indices)
+          remaining-indices (rest indices)]
+      (purge-index elastic current-index index-prefix retention-policies)
+      (if (not (empty? remaining-indices))
+        (recur remaining-indices)))))
+
+(defn purge-every
+  "periodically purges indices"
+  [interval elastic index-prefix retention-policies]
+  (let [piscine (at/mk-pool)
+        milliseconds (clj-time.core/in-millis interval)]
+    (at/every milliseconds #(purge elastic index-prefix retention-policies) piscine)))
 
 (defn shift-aliases-with-map
   "maps shift-alias to all indices from elastic connection matching index-prefix"
