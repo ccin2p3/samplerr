@@ -369,24 +369,24 @@
 (defn shift-alias
   "matches index with its corresponding retention policy. if expired, shifts its existing aliases to next retention policy. else adds alias if necessary"
   [elastic index index-prefix alias-prefix retention-policies]
-    (let [datestr (clojure.string/replace index (re-pattern (str "^" index-prefix)) "")
-          retention-policy-index (get-retention-policy-index datestr retention-policies)
-          dateobj (parse-retention-policy-date datestr retention-policies retention-policy-index)]
-      (if retention-policy-index
-        (let [next-dates (fresh-index-targets dateobj retention-policies)
-              next-date (first next-dates)
-              next-index (str index-prefix next-date)]
-          (if (is-expired? datestr retention-policies)
-            (do
-              (if next-date
-                (if (index-exists? elastic next-index)
-                  (if (get-aliases elastic index)
-                    (move-aliases elastic index next-index)
-                    (add-alias elastic next-index (str alias-prefix datestr)))
-                  (throw (Exception. (str "can't move aliases from " index " to missing " next-index)))))
-              (if (get-aliases elastic index)
-                (remove-aliases elastic index)))
-              (add-alias elastic index (str alias-prefix datestr)))))))
+  (let [datestr (clojure.string/replace index (re-pattern (str "^" index-prefix)) "")
+        retention-policy-index (get-retention-policy-index datestr retention-policies)
+        dateobj (parse-retention-policy-date datestr retention-policies retention-policy-index)]
+    (if retention-policy-index
+      (let [next-dates (fresh-index-targets dateobj retention-policies)
+            next-date (first next-dates)
+            next-index (str index-prefix next-date)]
+        (if (is-expired? datestr retention-policies)
+          (do
+            (if next-date
+              (if (index-exists? elastic next-index)
+                (if (get-aliases elastic index)
+                  (move-aliases elastic index next-index)
+                  (add-alias elastic next-index (str alias-prefix datestr)))
+                (throw (Exception. (str "can't move aliases from " index " to missing " next-index)))))
+            (if (get-aliases elastic index)
+              (remove-aliases elastic index)))
+          (add-alias elastic index (str alias-prefix datestr)))))))
 
 (defn shift-aliases-with-map
   "maps shift-alias to all indices from elastic connection matching index-prefix"
