@@ -1,9 +1,19 @@
 # samplerr
 
-## Features
+## Introduction
 
 The main goal of this project is to provide a means for long term relevant storage for your metrics.
-It borrows some of rrdtool's concepts:
+It borrows some of [rrdtool](http://rrdtool.org/)'s concepts and leverages the power of a modern storage backend: [elasticsearch](http://elastic.co/products/elasticsearch).
+
+The idea is to process variable resolution metrics and consolidate those using meaningful aggregation functions into multiple archive stores with different resolutions.
+Different resolution archives are mainly useful for two reasons:
+
+1. Keep storage space in bounds
+2. Keep data amount in bounds at query time
+
+Different consolidation functions (*e.g.* min, max, avg, *etc.*) are mainly useful for keeping track of what matters in the metrics you keep.
+
+## Features
 
 * multiple resolution archives
 * consolidation functions
