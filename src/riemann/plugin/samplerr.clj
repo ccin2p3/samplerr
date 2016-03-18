@@ -204,12 +204,18 @@
               (streams/coalesce interval
                 (streams/smap #(first %) (apply streams/sdo children)))))
 
+(defn- to-seconds*
+  "takes a clj-time duration and converts it to seconds"
+  [dateobj]
+  (clj-time.core/in-seconds dateobj))
+(def to-seconds (memoize to-seconds*))
+
 (defn down-n-cf
   "takes map of archive parameters and sends time-aggregated data to elasticsearch"
   [{:keys [cfunc step tf] :as args :or {cfunc {:name "avg" :func average}}} & children]
   (let [cfunc_n (:name cfunc)
         cfunc_f (:func cfunc)
-        seconds (clj-time.core/in-seconds step)]
+        seconds (to-seconds step)]
     (streams/with {:step seconds :cfunc cfunc_n :ttl seconds :tf tf}
       (streams/where metric
         (cfunc_f seconds
