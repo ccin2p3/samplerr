@@ -85,7 +85,7 @@
   (apply esr/connect argv))
 
   
-(defn make-index-timestamper [event]
+(defn- make-index-timestamper [event]
   (let [formatter (clj-time.format/formatter (eval (get event "tf")))]
     (fn [date]
       (clj-time.format/unparse formatter date))))
@@ -144,13 +144,13 @@
 ;;;;;;
 ;;;;;;
 
-(defn compare-step
+(defn- compare-step
   "orders a vector of hash-maps using the key :step"
   [a b]
   (- (:step a) (:step b)))
 
 ; see https://github.com/riemann/riemann/issues/563#issuecomment-181803478
-(defn rammer [e & children]
+(defn- rammer [e & children]
   "Pushes the accumulated metrics"
   (fn stream [events]
     (let [events     (group-by #(if (not= (:metric %) nil) :ok :nil) events)
@@ -162,7 +162,7 @@
                          event (if (not= (:metric @e) nil) event (assoc event :state "expired"))]
                      (riemann.config/reinject event))))))
 
-(defn fixed-time-window-folds [interval riemann_folds_func & children]
+(defn- fixed-time-window-folds [interval riemann_folds_func & children]
   "Fold event stream in time every interval seconds using riemann_folds_func e.g. folds/sum"
   (let [e (atom nil)]
     (streams/fill-in-last 1 {:metric nil}
@@ -237,7 +237,7 @@
 ;;; that need license checking
 
 ;source http://stackoverflow.com/questions/8641305/find-index-of-an-element-matching-a-predicate-in-clojure
-(defn indices [pred coll]
+(defn- indices [pred coll]
   (keep-indexed #(when (pred %2) %1) coll))
 
 ;;;
@@ -249,27 +249,27 @@
   [elastic prefix]
   (map name (keys (esri/get-aliases elastic (str prefix "*")))))
 
-(defn get-index-metadata
+(defn- get-index-metadata
   "returns index metadata"
   [elastic index]
   (esrd/get elastic index "meta" "samplerr"))
 
-(defn flagged?
+(defn- flagged?
   "returns true if index is flagged as expired"
   [elastic index]
   (true? ((comp :expired :_source) (get-index-metadata elastic index))))
 
-(defn flag
+(defn- flag
   "flags index as expired"
   [elastic index]
   (esrd/put elastic index "meta" "samplerr" {:expired true}))
 
-(defn unflag
+(defn- unflag
   "flags index as expired"
   [elastic index]
   (esrd/put elastic index "meta" "samplerr" {:expired false}))
 
-(defn index-exists?
+(defn- index-exists?
   "returns true if index exists"
   [elastic index]
   (esri/exists? elastic index))
@@ -294,7 +294,7 @@
   [datestr retention-policies]
   (first (indices #(matches-timeformat? datestr (:tf %)) retention-policies)))
 
-(defn parse-datestr
+(defn- parse-datestr
   "parses datestr using retention-policy"
   [datestr retention-policy]
   (let [tf (:tf retention-policy)]
@@ -306,7 +306,7 @@
   (let [retention-policy (nth retention-policies n)]
     (parse-datestr datestr retention-policy)))
 
-(defn format-datestr
+(defn- format-datestr
   "formats dateobj using retention-policy"
   [dateobj retention-policy]
   (let [tf (:tf retention-policy)]
@@ -333,8 +333,6 @@
   "returns aliases of index or empty list"
   [elastic index]
   (keys ((comp :aliases (keyword index))(esri/get-aliases elastic index))))
-
-(defmacro dbg[x] `(let [x# ~x] (println "dbg:" '~x "=" x#) x#))
 
 (defn move-aliases
   "moves aliases from src-index to dst-index"
