@@ -158,6 +158,11 @@ The idea behind this is that clients will query elasticsearch using the aliases.
       * parse the time of the beginning of its period using `:tf`
       * add an alias `<alias-prefix>-<parsed-time>`
 
+The usual way to use this function is either:
+
+* periodically using `periodically-rotate`
+* triggered by an event in the stream. For instance you could trigger the rotation when the day changes
+
 #### `(periodically-rotate {:interval periodicity :conn es-conn-handle :index-prefix index-prefix :alias-prefix alias-prefix :archives archives)`
 
 This function will call `rotate` every `periodicity` time interval. The first argument should be given in terms of a `org.joda.time/PeriodType` object conventiently provided by `clj-time.core` using *e.g.* `hours`, `days`, *etc.*
@@ -181,6 +186,11 @@ riemann started exactly 2 days ago. `samplerr/rotate` fires up and processes the
 #### `(purge {:conn es-conn-handle :index-prefix index-prefix :archives archives)`
 
 This function will **DELETE** expired indices. Use with care.
+
+The usual way to use this function is either:
+
+* periodically using `periodically-purge`
+* triggered by an event in the stream. For instance you could trigger the purge when the disk space is full on the elasticsearch node
 
 #### `(periodically-purge {:interval periodicity :conn es-conn-handle :index-prefix index-prefix :archives archives)`
 
