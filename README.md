@@ -142,7 +142,7 @@ Events should contain the riemann attribute `:tf` which will route them to the a
 
 This is a proxy to `clojurewerkz.elastisch.rest/connect`
 
-#### `(rotate es-conn-handle index-prefix alias-prefix archives)`
+#### `(rotate {:conn es-conn-handle :index-prefix index-prefix :alias-prefix alias-prefix :archives archives)`
 
 This will manage elasticsearch aliases.
 Aliases will be created for each `archive` by concatenating `index-prefix` with the `:tf` formatted date and will point to the first *unexpired* index (prefix `index-prefix`). Expiry is computed using the archive's `:ttl`.
@@ -158,9 +158,12 @@ The idea behind this is that clients will query elasticsearch using the aliases.
       * parse the time of the beginning of its period using `:tf`
       * add an alias `<alias-prefix>-<parsed-time>`
 
-#### `(rotate-every periodicity es-conn-handle index-prefix alias-prefix archives)`
+#### `(periodically-rotate {:interval periodicity :conn es-conn-handle :index-prefix index-prefix :alias-prefix alias-prefix :archives archives)`
 
 This function will call `rotate` every `periodicity` time interval. The first argument should be given in terms of a `org.joda.time/PeriodType` object conventiently provided by `clj-time.core` using *e.g.* `hours`, `days`, *etc.*
+
+Note that the first rotation will not take effect immediately after riemann startup.
+Also note that configuration reloads will work as expected.
 
 ##### Example
 
@@ -175,11 +178,11 @@ riemann started exactly 2 days ago. `samplerr/rotate` fires up and processes the
 * `.sampler-2014.12` is two months old: expired! move its aliases to `.samplerr-2014`
 * …
 
-#### `(purge es-conn-handle index-prefix archives)`
+#### `(purge {:conn es-conn-handle :index-prefix index-prefix :archives archives)`
 
 This function will **DELETE** expired indices. Use with care.
 
-#### `(purge-every periodicity es-conn-handle index-prefix archives)`
+#### `(periodically-purge {:interval periodicity :conn es-conn-handle :index-prefix index-prefix :archives archives)`
 
 This function will call `purge` periodically.
 

@@ -17,4 +17,5 @@ All notable changes to this project will be documented in this file. This change
 ## [0.1.1] - 2016-02-05
 - initial release
 
-
+[unreleased]: https://github.com/your-name/riemann-mbeans/compare/0.1.1...HEAD
+[0.1.1]: https://github.com/your-name/riemann-mbeans/compare/0.1.0...0.1.1

@@ -2,7 +2,6 @@
   "A riemann plugin to downsample data in a RRDTool fashion into elasticsearch"
   (:use [clojure.tools.logging :only (info error debug warn)])
   (:require [cheshire.core :as json]
-            [overtone.at-at :as at]
             [clj-time.format]
             [clj-time.core]
             [clj-time.coerce]
@@ -13,6 +12,8 @@
             [clojurewerkz.elastisch.rest.document :as esrd]
             [clojurewerkz.elastisch.rest :as esr]
             [riemann.config]
+            [riemann.core :as core]
+            [riemann.service :as service]
             [riemann.streams :as streams]))
 
 (defn ^{:private true} keys-to-map [key-map] 
@@ -407,35 +408,65 @@
 
 (defn purge
   "deletes all indices matching index-prefix and that are expired according to retention-policies"
-  [elastic index-prefix retention-policies]
-  (loop [indices (list-indices elastic (str index-prefix "*"))]
+  [{:keys [conn index-prefix retention-policies]}]
+  (loop [indices (list-indices conn (str index-prefix "*"))]
     (let [current-index (first indices)
           remaining-indices (rest indices)]
-      (purge-index elastic current-index index-prefix retention-policies)
+      (purge-index conn current-index index-prefix retention-policies)
       (if (not (empty? remaining-indices))
         (recur remaining-indices)))))
 
-(defn purge-every
-  "periodically purges indices"
-  [interval elastic index-prefix retention-policies]
-  (let [piscine (at/mk-pool)
-        milliseconds (clj-time.core/in-millis interval)]
-    (at/every milliseconds #(purge elastic index-prefix retention-policies) piscine)))
+(defn purge-service
+  "returns a service which schedules a task to purge indices"
+  [{:keys [interval conn index-prefix archives enabled?]
+    :or {interval 10
+         enabled? true}}]
+  (let [interval (long (* 1000 interval))]
+    (service/thread-service
+      ::samplerr-purge [interval conn index-prefix archives enabled?]
+      (fn purge [core]
+        (Thread/sleep interval)
+        (try
+          (if enabled?
+            (purge {:conn conn :index-prefix index-prefix :archives archives}))
+          (catch Exception e
+            (warn e "purge service caught")))))))
+
+(defn periodically-purge
+  "adds an index purge service to core"
+  [& opts]
+  (let [service (apply purge-service opts)]
+    (swap! riemann.config/next-core core/conj-service service :force)))
 
 (defn rotate
   "maps shift-alias to all indices from elastic connection matching index-prefix"
-  [elastic index-prefix alias-prefix retention-policies]
-  (loop [indices (list-indices elastic (str index-prefix "*"))]
+  [{:keys [conn index-prefix alias-prefix archives]}]
+  (loop [indices (list-indices conn (str index-prefix "*"))]
     (let [current-index (first indices)
           remaining-indices (rest indices)]
-      (shift-alias elastic current-index index-prefix alias-prefix retention-policies)
+      (shift-alias conn current-index index-prefix alias-prefix archives)
       (if (not (empty? remaining-indices))
         (recur remaining-indices)))))
 
-(defn rotate-every
-  "periodically rotates aliases"
-  [interval elastic index-prefix alias-prefix retention-policies]
-  (let [piscine (at/mk-pool)
-        milliseconds (clj-time.core/in-millis interval)]
-    (at/every milliseconds #(rotate elastic index-prefix alias-prefix retention-policies) piscine)))
+(defn rotation-service
+  "returns a service which schedules a task to rotate aliases"
+  [{:keys [interval conn alias-prefix index-prefix archives enabled?]
+    :or {interval 10
+         enabled? true}}]
+  (let [interval (long (* 1000 interval))]
+    (service/thread-service
+      ::samplerr-rotation [interval conn alias-prefix index-prefix archives enabled?]
+      (fn rot [core]
+        (Thread/sleep interval)
+        (try
+          (if enabled?
+            (rotate {:conn conn :index-prefix index-prefix :alias-prefix alias-prefix :archives archives}))
+          (catch Exception e
+            (warn e "rotation service caught")))))))
+
+(defn periodically-rotate
+  "adds an alias rotation service to core"
+  [& opts]
+  (let [service (apply rotation-service opts)]
+    (swap! riemann.config/next-core core/conj-service service :force)))
 
