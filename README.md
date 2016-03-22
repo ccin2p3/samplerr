@@ -76,7 +76,7 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
       archives     [{:tf "YYYY.MM.dd" :step (t/seconds 20) :ttl   (t/days 2) :cfunc cfunc}
                     {:tf "YYYY.MM"    :step (t/minutes 10) :ttl (t/months 2) :cfunc cfunc}
                     {:tf "YYYY"       :step    (t/hours 1) :ttl (t/years 10) :cfunc cfunc}]
-      rotate       (samplerr/periodically-rotate {:interval 3600 :conn elastic :index-prefix index-prefix :alias-prefix alias-prefix :archives archives)
+      rotate       (samplerr/periodically-rotate {:interval (t/days 1) :conn elastic :index-prefix index-prefix :alias-prefix alias-prefix :archives archives)
       persist      (batch 1000 10 (samplerr/persist {:index-prefix index-prefix :index-type "samplerr" :conn elastic}))]
 
   (streams

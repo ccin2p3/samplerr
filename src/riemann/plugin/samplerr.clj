@@ -211,6 +211,12 @@
   (clj-time.core/in-seconds dateobj))
 (def to-seconds (memoize to-seconds*))
 
+(defn- to-millis*
+  "takes a clj-time duration and converts it to milliseconds"
+  [dateobj]
+  (clj-time.core/in-millis dateobj))
+(def to-millis (memoize to-millis*))
+
 (defn down-n-cf
   "takes map of archive parameters and sends time-aggregated data to elasticsearch"
   [{:keys [cfunc step tf] :as args :or {cfunc {:name "avg" :func average}}} & children]
@@ -419,9 +425,9 @@
 (defn purge-service
   "returns a service which schedules a task to purge indices"
   [{:keys [interval conn index-prefix archives enabled?]
-    :or {interval 10
+    :or {interval (clj-time.core/days 3)
          enabled? true}}]
-  (let [interval (long (* 1000 interval))]
+  (let [interval (to-millis interval)]
     (service/thread-service
       ::samplerr-purge [interval conn index-prefix archives enabled?]
       (fn purge [core]
@@ -451,9 +457,9 @@
 (defn rotation-service
   "returns a service which schedules a task to rotate aliases"
   [{:keys [interval conn alias-prefix index-prefix archives enabled?]
-    :or {interval 10
+    :or {interval (clj-time.core/minutes 5)
          enabled? true}}]
-  (let [interval (long (* 1000 interval))]
+  (let [interval (to-millis interval)]
     (service/thread-service
       ::samplerr-rotation [interval conn alias-prefix index-prefix archives enabled?]
       (fn rot [core]
