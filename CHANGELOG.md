@@ -8,7 +8,13 @@ All notable changes to this project will be documented in this file. This change
 ### Fixed
 - foo
 
-## [0.2.1] - 2016-03-17
+## 0.3.1 - 2016-03-22
+
+### Changed
+- remove at-at dependency
+- change rotate/purge semantics
+
+## 0.2.1 - 2016-03-17
 
 ### Changed
 - change semantics of higher-level functions
