@@ -414,11 +414,12 @@
 
 (defn purge
   "deletes all indices matching index-prefix and that are expired according to retention-policies"
-  [{:keys [conn index-prefix retention-policies]}]
+  [{:keys [conn index-prefix archives]}]
+  (debug "purging")
   (loop [indices (list-indices conn (str index-prefix "*"))]
     (let [current-index (first indices)
           remaining-indices (rest indices)]
-      (purge-index conn current-index index-prefix retention-policies)
+      (purge-index conn current-index index-prefix archives)
       (if (not (empty? remaining-indices))
         (recur remaining-indices)))))
 
@@ -430,7 +431,7 @@
   (let [interval (to-millis interval)]
     (service/thread-service
       ::samplerr-purge [interval conn index-prefix archives enabled?]
-      (fn purge [core]
+      (fn pur [core]
         (Thread/sleep interval)
         (try
           (if enabled?
@@ -441,12 +442,14 @@
 (defn periodically-purge
   "adds an index purge service to core"
   [& opts]
+  (info "registering purge service with" (apply :interval opts) "interval")
   (let [service (apply purge-service opts)]
     (swap! riemann.config/next-core core/conj-service service :force)))
 
 (defn rotate
   "maps shift-alias to all indices from elastic connection matching index-prefix"
   [{:keys [conn index-prefix alias-prefix archives]}]
+  (debug "rotating")
   (loop [indices (list-indices conn (str index-prefix "*"))]
     (let [current-index (first indices)
           remaining-indices (rest indices)]
@@ -473,6 +476,7 @@
 (defn periodically-rotate
   "adds an alias rotation service to core"
   [& opts]
+  (info "registering rotation service with" (apply :interval opts) "interval")
   (let [service (apply rotation-service opts)]
     (swap! riemann.config/next-core core/conj-service service :force)))
 

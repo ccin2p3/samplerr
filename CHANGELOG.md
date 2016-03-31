@@ -8,6 +8,11 @@ All notable changes to this project will be documented in this file. This change
 ### Fixed
 - foo
 
+## 0.3.2 - 2016-03-31
+
+### Fixed
+- purge is now fixed (was noop)
+
 ## 0.3.1 - 2016-03-22
 
 ### Changed
@@ -23,5 +28,3 @@ All notable changes to this project will be documented in this file. This change
 ## [0.1.1] - 2016-02-05
 - initial release
 
-[unreleased]: https://github.com/your-name/riemann-mbeans/compare/0.1.1...HEAD
-[0.1.1]: https://github.com/your-name/riemann-mbeans/compare/0.1.0...0.1.1
