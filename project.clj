@@ -1,4 +1,4 @@
-(defproject samplerr "0.3.2"
+(defproject samplerr "0.3.2-SNAPSHOT"
   :description "riemann plugin to aggregate data in a round-robin fashion to elasticsearch"
   :url "http://github.com/samplerr/samplerr"
   :license {:name "CeCILL-C"
