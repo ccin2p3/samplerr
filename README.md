@@ -196,3 +196,7 @@ The usual way to use this function is either:
 
 This function will call `purge` periodically.
 
+## Development
+
+At the time of writing the contributors of this project are Fabien Wernli and some code from the elasticsearch integration was borrowed from [tnn1t1s](https://github.com/tnn1t1s/riemann-elastic) which itself borrowed from [kiries](https://github.com/threatgrid/kiries).
+

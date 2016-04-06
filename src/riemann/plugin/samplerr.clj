@@ -1,3 +1,6 @@
+; Copyright (c) Centre de Calcul de l'IN2P3 du CNRS
+; Contributor(s) : Fabien Wernli (2016)
+
 (ns riemann.plugin.samplerr
   "A riemann plugin to downsample data in a RRDTool fashion into elasticsearch"
   (:use [clojure.tools.logging :only (info error debug warn)])
