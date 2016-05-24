@@ -5,13 +5,25 @@
 The main goal of this project is to provide a means for long term relevant storage for your metrics.
 It borrows some of [rrdtool](http://rrdtool.org/)'s concepts and leverages the power of a modern storage backend: [elasticsearch](http://elastic.co/products/elasticsearch).
 
-The idea is to process variable resolution metrics and consolidate those using meaningful aggregation functions into multiple archive stores with different resolutions.
+The idea is to downsample metrics to multiple sampling rates by consolidating those using meaningful aggregation functions: multiple archive stores with different resolutions.
 Different resolution archives are mainly useful for two reasons:
 
 1. Keep storage space in bounds
 2. Keep data amount in bounds at query time
 
 Different consolidation functions (*e.g.* min, max, avg, *etc.*) are mainly useful for keeping track of what matters in the metrics you keep.
+
+samplerr keeps storage low and client queries fast by purging high-resolution data periodically and creates
+[elasticsearch aliases](https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html) to point the clients to the highest available resolution.
+
+![elasticsearch aliases](doc/samplerr.gif)
+
+## How it works
+
+![sampler diagram](doc/samplerr.svg)
+
+In this example, samplerr ingests a metric which has a 10s interval. It then downsamples it to 4 different archives with different consolidation functions.
+It keeps different retention policies for each elasticsearch index. For instance, the highest resolution data is kept for one day, while the lowest resolution is kept for 10 years.
 
 ## Features
 
@@ -37,13 +49,6 @@ The current implementation:
 * aggregates data in realtime into different round robin time-based elasticsearch indices (archives)
 * manages your time based elasticsearch aliases to point to highest possible resolution data
 * ensures your metric stays within storage boundaries
-
-## what's before alpha?
-
-**DISCLAIMER**
-
-This is an early alpha version.
-Testing is highly encouraged and appreciated!
 
 ## Installation
 

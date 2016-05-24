@@ -1,0 +1,2 @@
+recordmydesktop --windowid=0x2000001 -y94 --width=580 --height=426 --no-cursor --no-sound --overwrite -o samplerr.ogv
+ffmpeg -i samplerr.ogv -loop 0 samplerr.gif
