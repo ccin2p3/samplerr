@@ -20,7 +20,7 @@ samplerr keeps storage low and client queries fast by purging high-resolution da
 
 ## How it works
 
-![sampler diagram](doc/samplerr.svg)
+![sampler diagram](https://rawgit.com/ccin2p3/samplerr/master/doc/samplerr.svg)
 
 In this example, samplerr ingests a metric which has a 10s interval. It then downsamples it to 4 different archives with different consolidation functions.
 It keeps different retention policies for each elasticsearch index. For instance, the highest resolution data is kept for one day, while the lowest resolution is kept for 10 years.
