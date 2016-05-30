@@ -136,8 +136,7 @@
     (set-mojo! "preinstallScriptlet" (scriptlet
                                        (file (:root project)
                                              "pkg" "deb" "preinst.sh")))
-    (set-mojo! "requires" (create-dependency ["riemann >= 0.2.10"
-                                              "elasticsearch >= 2.1.0"]))
+    (set-mojo! "requires" (create-dependency ["riemann >= 0.2.10"]))
     (.execute)))
 
 (defn extract-rpm
