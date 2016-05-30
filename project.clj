@@ -7,4 +7,13 @@
                  [riemann             "0.2.10"]
                  [cheshire "5.5.0"]
                  [clj-time "0.11.0"]
-                 [clojurewerkz/elastisch "2.2.0"]])
+                 [clojurewerkz/elastisch "2.2.0"]]
+  :plugins [[lein-rpm "0.0.5"
+             :exclusions [org.apache.maven/maven-plugin-api
+                          org.codehaus.plexus/plexus-container-default
+                          org.codehaus.plexus/plexus-utils
+                          org.clojure/clojure
+                          classworlds]]
+            [org.apache.maven/maven-plugin-api "2.0"]]
+            )
+

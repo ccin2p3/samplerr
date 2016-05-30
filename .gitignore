@@ -5,7 +5,7 @@ pom.xml
 pom.xml.asc
 *.jar
 *.class
-/.lein-*
+/.lein-repl-history
 /.nrepl-port
 .hgignore
 .hg/
