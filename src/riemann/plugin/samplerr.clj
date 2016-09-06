@@ -48,6 +48,7 @@
 (defn ^{:private true} stashify-timestamp [event]
   (->  (if-not (get event "@timestamp")
          (let [time (:time event)]
+           (if (nil? time) (info event))
            (assoc event "@timestamp" (safe-iso8601 (long time))))
          event)
        (dissoc :time)
@@ -252,7 +253,8 @@
           ;(streams/smap #(assoc % :time (:orig-time %))
             ;(streams/smap #(dissoc % :orig-time)
               (streams/fixed-time-window interval
-                (streams/smap #(assoc (first %) :time (:orig-time (first %))) (apply streams/sdo children))))))))
+                ;(streams/smap #(assoc (first %) :time (:orig-time (first %))) (apply streams/sdo children))))))))
+                (streams/smap #(first %) (apply streams/sdo children))))))))
 
 (defn maximum
   [interval & children]
