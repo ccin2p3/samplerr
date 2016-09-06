@@ -3,7 +3,9 @@
 
 (ns riemann.plugin.samplerr
   "A riemann plugin to downsample data in a RRDTool fashion into elasticsearch"
-  (:use [clojure.tools.logging :only (info error debug warn)])
+  (:use [clojure.tools.logging :only (info error debug warn)]
+        [riemann.common :only [member?]]
+        [riemann.time :only [unix-time]])
   (:require [cheshire.core :as json]
             [clj-time.format]
             [clj-time.core]
@@ -46,6 +48,7 @@
 (defn ^{:private true} stashify-timestamp [event]
   (->  (if-not (get event "@timestamp")
          (let [time (:time event)]
+           (if (nil? time) (info event))
            (assoc event "@timestamp" (safe-iso8601 (long time))))
          event)
        (dissoc :time)
@@ -176,37 +179,85 @@
             (rammer e
               (apply streams/smap riemann_folds_func children)))))))
 
-; cfuncs
-(defn maximum
-  [interval & children]
-          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) event (if (>= (:metric event) (:metric acc)) event acc)))
-              (streams/coalesce interval
-                (streams/smap #(first %) (apply streams/sdo children)))))
+(defn- new-interval?
+  [acc event]
+  (when-let [acc-time (:time acc)]
+    (let [event-time (:time event)
+          age (- event-time acc-time)
+          step (:step event)]
+      (> age step))))
 
+; cfuncs
 (defn sum
   [interval & children]
-          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) event (assoc event :metric (+ (:metric acc) (:metric event)))))
-              (streams/coalesce interval
-                (streams/smap #(first %) (apply streams/sdo children)))))
+  (streams/sreduce
+    (fn [acc event]
+      (if (nil? acc)
+        event
+        (if (new-interval? acc event)
+          (assoc event :parent acc)
+          (assoc event :time (:time acc) :metric (+ (:metric event) (:metric acc))))))
+    nil
+    (streams/where (contains? event :parent)
+      (streams/smap #(:parent %)
+        (streams/smap #(dissoc % :parent)
+          (apply streams/sdo children))))))
+
 
 (defn counter
   [interval & children]
-          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) (assoc event :metric 1) (assoc event :metric (+ 1 (:metric acc))))) {:metric 0}
-              (streams/coalesce interval
-                (streams/smap #(first %) (apply streams/sdo children)))))
+  (streams/sreduce
+    (fn [acc event]
+      (if (nil? acc)
+          (assoc event :metric 1)
+          (if (new-interval? acc event)
+              (assoc event :metric 1 :parent acc)
+              (assoc event :time (:time acc) :metric (+ 1 (:metric acc))))))
+    nil
+    (streams/where (contains? event :parent)
+      (streams/smap #(:parent %)
+        (streams/smap #(dissoc % :parent)
+          (apply streams/sdo children))))))
 
 (defn average
   [interval & children]
-          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) (assoc event :sum (:metric event) :count 1) (assoc event :sum (+ (:sum acc) (:metric event)) :count (+ 1 (:count acc)) :time (:time acc)))) nil
-            (streams/smap #(assoc % :metric (/ (:sum %) (:count %)))
-              (streams/coalesce interval
-                (streams/smap #(first %) (apply streams/sdo children))))))
+  (streams/sreduce
+    (fn [acc event]
+      (if (nil? acc)
+        (assoc event :sum (:metric event) :count 1)
+        (if (new-interval? acc event)
+          (assoc event :sum (:metric event) :count 1 :parent acc)
+          (assoc event :time (:time acc) :count (+ 1 (:count acc)) :sum (+ (:metric event) (:sum acc))))))
+    nil
+    (streams/where (contains? event :parent)
+      (streams/smap #(:parent %)
+        (streams/smap #(dissoc % :parent)
+          (streams/smap #(assoc % :metric (/ (:sum %) (:count %)))
+            (apply streams/sdo children)))))))
+
+(defn extremum
+  [efunc interval children]
+  (streams/sreduce
+    (fn [acc event]
+      (if (new-interval? acc event)
+        (assoc event :parent acc :orig-time (:time event))
+        (if (efunc (:metric event) (:metric acc))
+          (assoc event :time (:time acc) :orig-time (:time event))
+          acc)))
+    (streams/where (contains? event :parent)
+      (streams/smap #(:parent %)
+        (streams/smap #(dissoc % :parent)
+          (streams/smap #(assoc % :time ((some-fn :orig-time :time) %))
+            (streams/smap #(dissoc % :orig-time)
+              (apply streams/sdo children))))))))
+
+(defn maximum
+  [interval & children]
+  (extremum >= interval children))
 
 (defn minimum
   [interval & children]
-          (streams/sreduce (fn [acc event] (if (or (nil? acc) (streams/expired? acc)) event (if (<= (:metric event) (:metric acc)) event acc)))
-              (streams/coalesce interval
-                (streams/smap #(first %) (apply streams/sdo children)))))
+  (extremum <= interval children))
 
 (defn- to-seconds*
   "takes a clj-time duration and converts it to seconds"
@@ -221,12 +272,12 @@
 (def to-millis (memoize to-millis*))
 
 (defn down-n-cf
-  "takes map of archive parameters and sends time-aggregated data to elasticsearch"
+  "takes map of archive parameters and sends time-aggregated data to children"
   [{:keys [cfunc step tf] :as args :or {cfunc {:name "avg" :func average}}} & children]
   (let [cfunc_n (:name cfunc)
         cfunc_f (:func cfunc)
         seconds (to-seconds step)]
-    (streams/with {:step seconds :cfunc cfunc_n :ttl seconds :tf tf}
+    (streams/with {:step seconds :cfunc cfunc_n :ttl (* seconds 10) :tf tf}
       (streams/where metric
         (cfunc_f seconds
           (streams/smap #(assoc % :service (str (:service %) "/" cfunc_n "/" seconds))

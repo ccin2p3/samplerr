@@ -8,6 +8,12 @@ All notable changes to this project will be documented in this file. This change
 ### Fixed
 - foo
 
+## 0.3.3 - 2016-09-05
+
+### Fixed
+- events were lost e.g. not part of aggregation
+  this is now fixed in average/minimum/maximum/counter
+
 ## 0.3.2 - 2016-03-31
 
 ### Fixed
