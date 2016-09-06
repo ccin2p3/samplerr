@@ -201,8 +201,7 @@
     (streams/where (contains? event :parent)
       (streams/smap #(:parent %)
         (streams/smap #(dissoc % :parent)
-          (streams/fixed-time-window interval
-            (streams/smap #(first %) (apply streams/sdo children))))))))
+          (apply streams/sdo children))))))
 
 
 (defn counter
@@ -218,8 +217,7 @@
     (streams/where (contains? event :parent)
       (streams/smap #(:parent %)
         (streams/smap #(dissoc % :parent)
-        (streams/fixed-time-window interval
-          (streams/smap #(first %) (apply streams/sdo children))))))))
+          (apply streams/sdo children))))))
 
 (defn average
   [interval & children]
@@ -235,8 +233,7 @@
       (streams/smap #(:parent %)
         (streams/smap #(dissoc % :parent)
           (streams/smap #(assoc % :metric (/ (:sum %) (:count %)))
-            (streams/fixed-time-window interval
-              (streams/smap #(first %) (apply streams/sdo children)))))))))
+            (apply streams/sdo children)))))))
 
 (defn extremum
   [efunc interval children]
@@ -250,11 +247,9 @@
     (streams/where (contains? event :parent)
       (streams/smap #(:parent %)
         (streams/smap #(dissoc % :parent)
-          ;(streams/smap #(assoc % :time (:orig-time %))
-            ;(streams/smap #(dissoc % :orig-time)
-              (streams/fixed-time-window interval
-                ;(streams/smap #(assoc (first %) :time (:orig-time (first %))) (apply streams/sdo children))))))))
-                (streams/smap #(first %) (apply streams/sdo children))))))))
+          (streams/smap #(assoc % :time ((some-fn :orig-time :time) %))
+            (streams/smap #(dissoc % :orig-time)
+              (apply streams/sdo children))))))))
 
 (defn maximum
   [interval & children]
