@@ -195,7 +195,7 @@
       (if (nil? acc)
         event
         (if (new-interval? acc event)
-          (assoc event :parent acc)
+          (assoc event :parent (dissoc acc :parent))
           (assoc event :time (:time acc) :metric (+ (:metric event) (:metric acc))))))
     nil
     (streams/where (contains? event :parent)
@@ -211,7 +211,7 @@
       (if (nil? acc)
           (assoc event :metric 1)
           (if (new-interval? acc event)
-              (assoc event :metric 1 :parent acc)
+              (assoc event :metric 1 :parent (dissoc acc :parent))
               (assoc event :time (:time acc) :metric (+ 1 (:metric acc))))))
     nil
     (streams/where (contains? event :parent)
@@ -225,7 +225,7 @@
       (if (nil? acc)
         (assoc event :sum (:metric event) :count 1)
         (if (new-interval? acc event)
-          (assoc event :sum (:metric event) :count 1 :parent acc)
+          (assoc event :sum (:metric event) :count 1 :parent (dissoc acc :parent))
           (assoc event :time (:time acc) :count (+ 1 (:count acc)) :sum (+ (:metric event) (:sum acc))))))
     nil
     (streams/where (contains? event :parent)
@@ -239,7 +239,7 @@
   (streams/sreduce
     (fn [acc event]
       (if (new-interval? acc event)
-        (assoc event :parent acc :orig-time (:time event))
+        (assoc event :parent (dissoc acc :parent) :orig-time (:time event))
         (if (efunc (:metric event) (:metric acc))
           (assoc event :time (:time acc) :orig-time (:time event))
           acc)))
