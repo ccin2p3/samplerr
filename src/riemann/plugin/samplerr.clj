@@ -151,34 +151,6 @@
 ;;;;;;
 ;;;;;;
 
-(defn- compare-step
-  "orders a vector of hash-maps using the key :step"
-  [a b]
-  (- (:step a) (:step b)))
-
-; see https://github.com/riemann/riemann/issues/563#issuecomment-181803478
-(defn- rammer [e & children]
-  "Pushes the accumulated metrics"
-  (fn stream [events]
-    (let [events     (group-by #(if (not= (:metric %) nil) :ok :nil) events)
-          ok-events  (:ok events)
-          nil-events (:nil events)]
-      (cond
-        ok-events  (streams/call-rescue ok-events children)
-        nil-events (let [event (first nil-events)
-                         event (if (not= (:metric @e) nil) event (assoc event :state "expired"))]
-                     (riemann.config/reinject event))))))
-
-(defn- fixed-time-window-folds [interval riemann_folds_func & children]
-  "Fold event stream in time every interval seconds using riemann_folds_func e.g. folds/sum"
-  (let [e (atom nil)]
-    (streams/fill-in-last 1 {:metric nil}
-      (streams/sdo
-        (streams/register e)
-          (streams/fixed-time-window interval
-            (rammer e
-              (apply streams/smap riemann_folds_func children)))))))
-
 (defn- new-interval?
   [acc event]
   (when-let [acc-time (:time acc)]
@@ -276,7 +248,7 @@
   (let [cfunc_n (:name cfunc)
         cfunc_f (:func cfunc)
         seconds (to-seconds step)]
-    (streams/with {:step seconds :cfunc cfunc_n :ttl (* seconds 10) :tf tf}
+    (streams/with {:step seconds :cfunc cfunc_n :ttl (* seconds 3) :tf tf}
       (streams/where metric
         (cfunc_f seconds
           (streams/smap #(assoc % :service (str (:service %) "/" cfunc_n "/" seconds))
