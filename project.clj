@@ -4,7 +4,6 @@
   :license {:name "EPL-1.0"
             :url "https://spdx.org/licenses/EPL-1.0.html"}
   :dependencies [[org.clojure/clojure "1.7.0"]
-                 [riemann             "0.2.10"]
                  [cheshire "5.5.0"]
                  [clj-time "0.11.0"]
                  [clojurewerkz/elastisch "2.2.0"]]
