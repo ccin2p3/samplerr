@@ -199,9 +199,9 @@
           (assoc event :time (:time acc) :metric (+ (:metric event) (:metric acc))))))
     nil
     (streams/where (contains? event :parent)
-      (streams/smap #(:parent %)
-        (streams/smap #(dissoc % :parent)
-          (apply streams/sdo children))))))
+      (streams/smap #((comp (fn [e] (dissoc e :parent))
+                            :parent) %)
+        (apply streams/sdo children)))))
 
 
 (defn counter
@@ -215,9 +215,8 @@
               (assoc event :time (:time acc) :metric (+ 1 (:metric acc))))))
     nil
     (streams/where (contains? event :parent)
-      (streams/smap #(:parent %)
-        (streams/smap #(dissoc % :parent)
-          (apply streams/sdo children))))))
+      (streams/smap #((comp (fn [event] (dissoc event :parent)) :parent) %)
+        (apply streams/sdo children)))))
 
 (defn average
   [interval & children]
@@ -230,10 +229,10 @@
           (assoc event :time (:time acc) :count (+ 1 (:count acc)) :sum (+ (:metric event) (:sum acc))))))
     nil
     (streams/where (contains? event :parent)
-      (streams/smap #(:parent %)
-        (streams/smap #(dissoc % :parent)
-          (streams/smap #(assoc % :metric (/ (:sum %) (:count %)))
-            (apply streams/sdo children)))))))
+      (streams/smap #((comp (fn [e] (assoc e :metric (/ (:sum e) (:count e))))
+                            (fn [e] (dissoc e :parent))
+                            :parent) %)
+        (apply streams/sdo children)))))
 
 (defn extremum
   [efunc interval children]
@@ -245,11 +244,11 @@
           (assoc event :time (:time acc) :orig-time (:time event))
           acc)))
     (streams/where (contains? event :parent)
-      (streams/smap #(:parent %)
-        (streams/smap #(dissoc % :parent)
-          (streams/smap #(assoc % :time ((some-fn :orig-time :time) %))
-            (streams/smap #(dissoc % :orig-time)
-              (apply streams/sdo children))))))))
+      (streams/smap #((comp (fn [e] (dissoc e :orig-time))
+                            (fn [e] (assoc e :time ((some-fn :orig-time :time) e)))
+                            (fn [e] (dissoc e :parent))
+                            :parent) %)
+        (apply streams/sdo children)))))
 
 (defn maximum
   [interval & children]
