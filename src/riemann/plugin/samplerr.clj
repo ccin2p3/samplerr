@@ -157,7 +157,7 @@
     (let [event-time (:time event)
           age (- event-time acc-time)
           step (:step event)]
-      (> age step))))
+      (>= age step))))
 
 ; cfuncs
 (defn sum
