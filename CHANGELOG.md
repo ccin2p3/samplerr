@@ -8,6 +8,11 @@ All notable changes to this project will be documented in this file. This change
 ### Fixed
 - foo
 
+## 0.3.5 - 2017-01-13
+
+### Fixed
+- low frequency (lower than step) events were lost
+
 ## 0.3.3 - 2016-09-05
 
 ### Fixed
