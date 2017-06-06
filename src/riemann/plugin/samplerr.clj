@@ -112,8 +112,8 @@
           (let [raw (get esets es_index)
                 bulk-create-items
                 (interleave (map #(if-let [id (get % "_id")]
-                                    {:create {:_type index-type :_index es_index :_id id}}
-                                    {:create {:_type index-type :_index es_index}}
+                                    {:index {:_type index-type :_index es_index :_id id}}
+                                    {:index {:_type index-type :_index es_index}}
                                     )
                                  raw)
                             raw)]
@@ -122,8 +122,8 @@
                 (let [res (eb/bulk conn bulk-create-items)
                       by_status (frequencies (map :status (map :create (:items res))))
                       total (count (:items res))
-                      succ (filter :_version (map :create (:items res)))
-                      failed (filter :error (map :create (:items res)))]
+                      succ (filter :_version (map :index (:items res)))
+                      failed (filter :error (map :index (:items res)))]
                   (info "elasticized" total " (total) " by_status " docs to " es_index "in " (:took res) "ms")
                   (debug "Failed: " failed))
                 (catch Exception e
@@ -373,7 +373,7 @@
   (let [src-aliases (get-aliases elastic src-index)
         src-actions (map #(hash-map :remove (hash-map :index src-index :alias %)) src-aliases)
         dst-actions (map #(hash-map :add    (hash-map :index dst-index :alias %)) src-aliases)]
-    (esri/update-aliases elastic src-actions dst-actions)))
+    (apply esri/update-aliases elastic (concat src-actions dst-actions))))
 
 (defn add-alias
   "adds alias to index"
