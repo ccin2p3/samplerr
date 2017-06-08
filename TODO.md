@@ -1,5 +1,16 @@
 # TODO
 
+##
+
+21:49 < aphyr> righto
+21:49 < aphyr> yeah, so I'd say for stuff like sum, for instance
+21:50 < aphyr> (defn sum [interval & cs] (let [count (atom 0)] (fn stream [event] (swap! state + (:metric event)) ...))
+21:50 < aphyr> same pattern as rate, sreduce itself, etc
+21:50 < aphyr> close over an atom with your stream fn
+21:51 < aphyr> https://github.com/riemann/riemann/blob/master/src/riemann/streams.clj#L220-L223
+21:51 < aphyr> https://github.com/riemann/riemann/blob/master/src/riemann/streams.clj#L263-L274
+21:51 < aphyr> hopefully a straightforward pattern to apply to your use case
+
 ## aggregation
 
 * (fixed-offset-time-window) is too memory intensive
