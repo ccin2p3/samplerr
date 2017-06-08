@@ -12,10 +12,8 @@
             [clj-time.coerce]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojurewerkz.elastisch.rest.bulk :as eb]
-            [clojurewerkz.elastisch.rest.index :as esri]
-            [clojurewerkz.elastisch.rest.document :as esrd]
-            [clojurewerkz.elastisch.rest :as esr]
+            [qbits.spandex :as es]
+            [qbits.spandex.utils :as esu]
             [riemann.config]
             [riemann.core :as core]
             [riemann.service :as service]
@@ -89,7 +87,7 @@
 (defn connect
   "Connect to ElasticSearch"
   [& argv]
-  (apply esr/connect argv))
+  (apply es/client argv))
 
   
 (defn- make-index-timestamper [event]
@@ -119,8 +117,9 @@
                             raw)]
             (when (seq bulk-create-items)
               (try
-                (let [res (eb/bulk conn bulk-create-items)
-                      by_status (frequencies (map :status (map :create (:items res))))
+                (let [response (es/request conn {:url "_bulk" :body (es/chunks->body bulk-create-items) :method :post})
+                      res (:body response)
+                      by_status (frequencies (map :status (map :index (:items res))))
                       total (count (:items res))
                       succ (filter :_version (map :index (:items res)))
                       failed (filter :error (map :index (:items res)))]
@@ -140,12 +139,6 @@
       (error "Exception while reading JSON file: " file-name)
       (throw e))))
 
-
-(defn load-index-template 
-  "Loads the file into ElasticSearch as an index template."
-  [template-name mapping-file]
-  (esr/put (esr/index-template-url template-name)
-           :body (file-as-json mapping-file)))
 
 ;;;;;;
 ;;;;;;
@@ -279,32 +272,12 @@
 (defn list-indices
   "lists all indices from an elasticsearch cluster having given prefix"
   [elastic prefix]
-  (map name (keys (esri/get-aliases elastic (str prefix "*")))))
-
-(defn- get-index-metadata
-  "returns index metadata"
-  [elastic index]
-  (esrd/get elastic index "meta" "samplerr"))
-
-(defn- flagged?
-  "returns true if index is flagged as expired"
-  [elastic index]
-  (true? ((comp :expired :_source) (get-index-metadata elastic index))))
-
-(defn- flag
-  "flags index as expired"
-  [elastic index]
-  (esrd/put elastic index "meta" "samplerr" {:expired true}))
-
-(defn- unflag
-  "flags index as expired"
-  [elastic index]
-  (esrd/put elastic index "meta" "samplerr" {:expired false}))
+  (map name (keys (:body (es/request elastic {:url (esu/url [(str prefix "*") :_aliases]) :method :get})))))
 
 (defn- index-exists?
   "returns true if index exists"
   [elastic index]
-  (esri/exists? elastic index))
+  (es/request elastic {:url (esu/url [index]) :method :head}))
 
 (defn matches-timeformat?
   "returns true if datestr matches timeformat"
@@ -364,7 +337,7 @@
 (defn get-aliases
   "returns aliases of index or empty list"
   [elastic index]
-  (keys ((comp :aliases (keyword index))(esri/get-aliases elastic index))))
+  (keys ((comp :aliases (keyword index))(:body (es/request elastic {:url (esu/url [index :_aliases]) :method :get})))))
 
 (defn move-aliases
   "moves aliases from src-index to dst-index"
@@ -373,21 +346,22 @@
   (let [src-aliases (get-aliases elastic src-index)
         src-actions (map #(hash-map :remove (hash-map :index src-index :alias %)) src-aliases)
         dst-actions (map #(hash-map :add    (hash-map :index dst-index :alias %)) src-aliases)]
-    (apply esri/update-aliases elastic (concat src-actions dst-actions))))
+    (es/request elastic {:url "/_aliases" :method :post :body {:actions (vec (concat src-actions dst-actions))}})))
 
 (defn add-alias
   "adds alias to index"
   [elastic index es-alias]
   (info "add alias" es-alias "->" index)
-  (esri/update-aliases elastic {:add {:index index :alias es-alias}}))
+  (es/request elastic {:url "/_aliases" :method :post :body {:actions [{:add {:index index :alias es-alias}}]}}))
 
 (defn remove-aliases
   "removes all aliases from index"
   [elastic index]
   (info "remove all aliases from" index)
   (let [aliases (get-aliases elastic index)
-        actions (map #(hash-map :remove (hash-map :index index :alias %)) aliases)]
-    (esri/update-aliases elastic actions)))
+        actions (map #(hash-map :remove (hash-map :index index :alias %)) aliases)
+        actions {:actions actions}]
+    (es/request elastic {:url "/_aliases" :method :post :body actions})))
 
 (defn fresh-index-targets
   "returns collection of unexpired datestrings for dateobj"
@@ -425,7 +399,7 @@
   "deletes index"
   [elastic index]
   (info "delete index" index)
-  (esri/delete elastic index))
+  (es/request elastic {:url (esu/url [index]) :method :delete}))
 
 (defn purge-index
   "deletes index if it matches a timeformat in retention-policies and is expired"
