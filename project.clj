@@ -1,4 +1,4 @@
-(defproject samplerr "0.4.0beta1"
+(defproject samplerr "0.4.0"
   :description "riemann plugin to aggregate data in a round-robin fashion to elasticsearch"
   :url "http://github.com/samplerr/samplerr"
   :license {:name "EPL-1.0"
