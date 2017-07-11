@@ -137,7 +137,7 @@ This stream function sends events processed by `down` to the storage backend (el
 
 * `:index-prefix` points to the string to be prefixed to the elasticsearch index. The event's time formatted using the archive's `:tf` will be appended to that prefix.
 * `:index-type` elasticsearch document type
-* `:conn` connection handle to the elasticsearch REST endpoint. This can be a `clojurewerkz.elastisch.rest/connect` endpoint, or our wrapped one called `connect`
+* `:conn` connection handle to the elasticsearch REST endpoint. This can be a [`qbits.spandex/client` endpoint](https://github.com/mpenet/spandex/blob/master/src/clj/qbits/spandex.clj#L33), or our wrapped one called `connect`
 
 Events should contain the riemann attribute `:tf` which will route them to the appropriate archive.
 
@@ -145,7 +145,7 @@ Events should contain the riemann attribute `:tf` which will route them to the a
 
 #### `(connect)`
 
-This is a proxy to `clojurewerkz.elastisch.rest/connect`
+This is a proxy to `qbits.spandex/client`
 
 #### `(rotate {:conn es-conn-handle :index-prefix index-prefix :alias-prefix alias-prefix :archives archives)`
 
