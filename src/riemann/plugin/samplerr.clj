@@ -13,7 +13,6 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [qbits.spandex :as es]
-            [qbits.spandex.utils :as esu]
             [riemann.config]
             [riemann.core :as core]
             [riemann.service :as service]
@@ -272,12 +271,12 @@
 (defn list-indices
   "lists all indices from an elasticsearch cluster having given prefix"
   [elastic prefix]
-  (map name (keys (:body (es/request elastic {:url (esu/url [(str prefix "*") :_aliases]) :method :get})))))
+  (map name (keys (:body (es/request elastic {:url [(str prefix "*") :_aliases] :method :get})))))
 
 (defn- index-exists?
   "returns true if index exists"
   [elastic index]
-  (es/request elastic {:url (esu/url [index]) :method :head}))
+  (es/request elastic {:url [index] :method :head}))
 
 (defn matches-timeformat?
   "returns true if datestr matches timeformat"
@@ -337,7 +336,7 @@
 (defn get-aliases
   "returns aliases of index or empty list"
   [elastic index]
-  (keys ((comp :aliases (keyword index))(:body (es/request elastic {:url (esu/url [index :_aliases]) :method :get})))))
+  (keys ((comp :aliases (keyword index))(:body (es/request elastic {:url [index :_aliases] :method :get})))))
 
 (defn move-aliases
   "moves aliases from src-index to dst-index"
@@ -399,7 +398,7 @@
   "deletes index"
   [elastic index]
   (info "delete index" index)
-  (es/request elastic {:url (esu/url [index]) :method :delete}))
+  (es/request elastic {:url [index] :method :delete}))
 
 (defn purge-index
   "deletes index if it matches a timeformat in retention-policies and is expired"
