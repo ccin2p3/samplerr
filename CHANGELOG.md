@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file. This change
 ### Fixed
 - foo
 
+## 0.4.1 - 2017-07-11
+- move from clojurewerkz/elastisch to qbits/spandex
+
 ## 0.3.6 - 2017-06-06
 - adds elasticsearch 5.x compatibility
 - bump dep versions to match riemann 0.2.13
