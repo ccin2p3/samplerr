@@ -72,7 +72,7 @@ On debian or redhat you could also add the classpath using the `EXTRA_CLASSPATH`
 (load-plugins)
 (require '[clj-time.core :as t])
 
-(let [elastic      (samplerr/connect "http://localhost:9200")
+(let [elastic      (samplerr/connect {:hosts ["http://localhost:9200"]})
       index-prefix ".samplerr"
       alias-prefix "samplerr"
       cfunc        [{:func samplerr/average :name "avg"}
