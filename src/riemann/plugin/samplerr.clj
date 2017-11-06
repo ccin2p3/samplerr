@@ -116,7 +116,7 @@
                             raw)]
             (when (seq bulk-create-items)
               (try
-                (let [response (es/request conn {:url "_bulk" :body (es/chunks->body bulk-create-items) :method :post})
+                (let [response (es/request conn {:url "_bulk" :body (es/chunks->body bulk-create-items) :content-type "application/x-ndjson" :method :post})
                       res (:body response)
                       by_status (frequencies (map :status (map :index (:items res))))
                       total (count (:items res))
@@ -386,6 +386,8 @@
           (do
             (if next-date
               (if (index-exists? elastic next-index)
+;;;;;;;stacktrace happens here
+;;;;;;;at clojure.core$ex_info.invokeStatic(core.clj:4617) at clojure.core$ex_info.invoke(core.clj:4617) at qbits.spandex$response_ex__GT_ex_info.invokeStatic(spandex.clj:218) at qbits.spandex$response_ex__GT_ex_info.invoke(spandex.clj:215) at qbits.spandex$eval6897$fn__6898.invoke(spandex.clj:227) at qbits.spandex$eval6880$fn__6881$G__6871__6886.invoke(spandex.clj:222) at qbits.spandex$default_exception_handler.invokeStatic(spandex.clj:238) at qbits.spandex$default_exception_handler.invoke(spandex.clj:231) at qbits.spandex$request.invokeStatic(spandex.clj:271) at qbits.spandex$request.invoke(spandex.clj:253) at riemann.plugin.samplerr$index_exists_QMARK_.invokeStatic(samplerr.clj:279) at riemann.plugin.samplerr$index_exists_QMARK_.invoke(samplerr.clj:276) at riemann.plugin.samplerr$shift_alias.invokeStatic(samplerr.clj:388) at riemann.plugin.samplerr$shift_alias.invoke(samplerr.clj:375) at riemann.plugin.samplerr$rotate.invokeStatic(samplerr.clj:454) at riemann.plugin.samplerr$rotate.invoke(samplerr.clj:447) at riemann.plugin.samplerr$rotation_service$rot__7675.invoke(samplerr.clj:470) at riemann.service.ThreadService$thread_service_runner__6478$fn__6479.invoke(service.clj:71) at riemann.service.ThreadService$thread_service_runner__6478.invoke(service.clj:70) at clojure.lang.AFn.run(AFn.java:22) at java.lang.Thread.run(Thread.java:748)
                 (if (get-aliases elastic index)
                   (move-aliases elastic index next-index)
                   (add-alias elastic next-index (str alias-prefix datestr)))
