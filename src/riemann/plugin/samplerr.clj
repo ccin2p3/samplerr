@@ -276,7 +276,10 @@
 (defn- index-exists?
   "returns true if index exists"
   [elastic index]
-  (es/request elastic {:url [index] :method :head}))
+  (try
+    (es/request elastic {:url [index] :method :head})
+    (catch Exception e
+      (warn e "index exists caught"))))
 
 (defn matches-timeformat?
   "returns true if datestr matches timeformat"
