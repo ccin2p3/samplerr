@@ -8,6 +8,11 @@ All notable changes to this project will be documented in this file. This change
 ### Fixed
 - foo
 
+## 0.6.1 - 2018-08-23
+- bump spandex dep to 0.6.4
+- fix some typos in README (thanks boernd and brutasse)
+- improve error handling
+
 ## 0.4.1 - 2017-07-11
 - move from clojurewerkz/elastisch to qbits/spandex
 
