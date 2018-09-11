@@ -271,7 +271,7 @@
 (defn list-indices
   "lists all indices from an elasticsearch cluster having given prefix"
   [elastic prefix]
-  (map name (keys (:body (es/request elastic {:url [(str prefix "*") :_aliases] :method :get})))))
+  (map name (keys (:body (es/request elastic {:url [(str prefix "*") :_alias "*"] :method :get})))))
 
 (defn- index-exists?
   "returns true if index exists"
