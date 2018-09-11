@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file. This change
 ### Fixed
 - foo
 
+## 0.6.2 - 2018-09-11
+- fix bug that made rotation/purge throw on ES6.x
+
 ## 0.6.1 - 2018-08-23
 - bump spandex dep to 0.6.4
 - fix some typos in README (thanks boernd and brutasse)
