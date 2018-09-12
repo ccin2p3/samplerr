@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file. This change
 ### Fixed
 - foo
 
+## 0.6.3 - 2018-09-12
+- fix bug that made rotation still throw on ES6.x
+
 ## 0.6.2 - 2018-09-11
 - fix bug that made rotation/purge throw on ES6.x
 
