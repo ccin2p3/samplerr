@@ -339,7 +339,7 @@
 (defn get-aliases
   "returns aliases of index or empty list"
   [elastic index]
-  (keys ((comp :aliases (keyword index))(:body (es/request elastic {:url [index :_aliases] :method :get})))))
+  (keys ((comp :aliases (keyword index))(:body (es/request elastic {:url [index :_alias] :method :get})))))
 
 (defn move-aliases
   "moves aliases from src-index to dst-index"
