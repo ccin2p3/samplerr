@@ -271,7 +271,7 @@
 (defn list-indices
   "lists all indices from an elasticsearch cluster having given prefix"
   [elastic prefix]
-  (map name (keys (:body (es/request elastic {:url [(str prefix "*") :_alias "*"] :method :get})))))
+  (map name (keys (:indices (:body (es/request elastic {:url [(str prefix "*") :_stats :store] :method :get}))))))
 
 (defn- index-exists?
   "returns true if index exists"
@@ -310,8 +310,10 @@
 (defn parse-retention-policy-date
   "parses datestr using index n of retention-policies"
   [datestr retention-policies n]
-  (let [retention-policy (nth retention-policies n)]
-    (parse-datestr datestr retention-policy)))
+  (if n
+    (let [retention-policy (nth retention-policies n)]
+      (parse-datestr datestr retention-policy))
+    (warn (str datestr " does not match any retention policy"))))
 
 (defn- format-datestr
   "formats dateobj using retention-policy"
