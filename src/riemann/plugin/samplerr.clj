@@ -243,7 +243,7 @@
     (streams/with {:step seconds :cfunc cfunc_n :tf tf}
       (streams/where metric
         (cfunc_f seconds
-          (streams/smap #(assoc % :ttl (max (* seconds 3) (:ttl %)) :service (str (:service %) "/" cfunc_n "/" seconds))
+          (streams/smap #(assoc % :ttl (max (* seconds 3) (or (:ttl %) 0)) :service (str (:service %) "/" cfunc_n "/" seconds))
             (apply streams/sdo children)))))))
 
 (defn down-n
