@@ -6,7 +6,7 @@
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [cheshire "5.7.0"]
                  [clj-time "0.13.0"]
-                 [riemann "0.2.13"]
+                 [riemann "0.3.1"]
                  [org.clojure/tools.logging "0.3.1"]
                  [cc.qbits/spandex "0.6.4"]]
   :plugins [[lein-rpm "0.0.5"
