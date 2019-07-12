@@ -8,7 +8,7 @@
              {:dependencies
               [[cheshire "5.7.0"]
                [org.clojure/clojure "1.8.0"]
-               [riemann "0.3.1"]
+               [riemann "0.3.8"]
                [clj-time "0.13.0"]
                [org.clojure/tools.logging "0.3.1"]]}}
   :plugins [[lein-rpm "0.0.5"
