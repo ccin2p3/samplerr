@@ -41,19 +41,8 @@
     ; Jar
     (.mkdirs (file dir "lib"))
     (copy (file (:root project) "target" 
-                (str "riemann-" (:version project) "-standalone.jar"))
-          (file dir "lib" "riemann.jar"))
-
-    ; Binary
-    (.mkdirs (file dir "bin"))
-    (copy (file (:root project) "pkg" "tar" "riemann")
-          (file dir  "bin" "riemann"))
-    (.setExecutable (file dir "bin" "riemann") true false)
-
-    ; Config
-    (.mkdirs (file dir "etc"))
-    (copy (file (:root project) "pkg" "tar" "riemann.config")
-          (file dir "etc" "riemann.config"))
+                (str "samplerr-" (:version project) "-standalone.jar"))
+          (file dir "lib" "samplerr-"))
 
     dir))
 
