@@ -122,7 +122,7 @@
                       total (count (:items res))
                       succ (filter :_version (map :index (:items res)))
                       failed (filter :error (map :index (:items res)))]
-                  (info "elasticized" total " (total) " by_status " docs to " es_index "in " (:took res) "ms")
+                  (debug "elasticized" total " (total) " by_status " docs to " es_index "in " (:took res) "ms")
                   (debug "Failed: " failed))
                 (catch Exception e
                   (error "Unable to bulk index:" e)))))))))
