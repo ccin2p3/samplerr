@@ -96,8 +96,8 @@
 
 (defn persist
   "bulk index to ES"
-  [{:keys [conn index-type index-prefix message]
-               :or {index-type "samplerr" index-prefix ".samplerr"
+  [{:keys [conn index-prefix message]
+               :or {index-prefix ".samplerr"
                     message true}} & children]
     (fn [events]
       (let [esets (group-by (fn [e] (let [index-namer (make-index-timestamper e)]
@@ -109,8 +109,8 @@
           (let [raw (get esets es_index)
                 bulk-create-items
                 (interleave (map #(if-let [id (get % "_id")]
-                                    {:index {:_type index-type :_index es_index :_id id}}
-                                    {:index {:_type index-type :_index es_index}}
+                                    {:index {:_index es_index :_id id}}
+                                    {:index {:_index es_index}}
                                     )
                                  raw)
                             raw)]
