@@ -3,7 +3,7 @@
   :url "http://github.com/samplerr/samplerr"
   :license {:name "EPL-1.0"
             :url "https://spdx.org/licenses/EPL-1.0.html"}
-  :dependencies [[cc.qbits/spandex "0.6.4"]]
+  :dependencies [[cc.qbits/spandex "0.7.10"]]
   :profiles {:provided
              {:dependencies
               [[cheshire "5.7.0"]
