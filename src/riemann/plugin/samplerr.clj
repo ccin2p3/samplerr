@@ -485,3 +485,122 @@
   (let [service (apply rotation-service opts)]
     (swap! riemann.config/next-core core/conj-service service :force)))
 
+(defn index-parts
+  "Match the year, month and day out of an index name"
+  [index]
+  (let [index-name (:index index)]
+    (rest (re-find #"(\d{4})(?:\.(\d{2})(?:\.(\d{2}))?)?$" index-name))))
+
+(defn index-year
+  "Return the year of an index as an Integer"
+  [index]
+  (Integer. (first (index-parts index))))
+
+(defn index-month
+  "Return the month of an index as an Integer"
+  [index]
+  (Integer. (or (second (index-parts index)) "1")))
+
+(defn index-day
+  "Return the day of an index as an Integer"
+  [index]
+  (Integer. (or (nth (index-parts index) 2) "1")))
+
+(defn yearly-index?
+  "Return true if an index has yearly data"
+  [index]
+  (= nil (second (index-parts index))))
+
+(defn monthly-index?
+  "Return true if an index has monthly data"
+  [index]
+  (and
+    (not (yearly-index? index))
+    (= nil (nth (index-parts index) 2))))
+
+(defn daily-index?
+  "Return true if an index has daily data"
+  [index]
+  (and
+    (not (yearly-index? index))
+    (not (monthly-index? index))))
+
+(defn index-start-timestamp
+  "Return an ISO timestamp of the time the index starts at"
+  [index]
+  (format "%02d-%02d-%02dT00:00:00Z" (index-year index) (index-month index) (index-day index)))
+
+(defn compact
+  "Remove nil items from a collection"
+  [coll]
+  (remove nil? coll))
+
+(defn remove-existing-aliases-query
+  "Return a query to remove all the passed aliases"
+  [aliases]
+  {:url "_aliases" :method :post :body {:actions (map #(if true {:remove {:index (:index %) :alias (:alias %)}}) aliases)}})
+
+(defn create-aliases-query
+  "Return a query to create the aliases to query all passed indices"
+  [indices index-prefix alias-prefix]
+  (let [yearly-indices      (filter #(re-find #"\d{4}$" (:index %)) indices)
+        monthly-indices     (filter #(re-find #"\d{4}\.\d{2}$" (:index %)) indices)
+        daily-indices       (filter #(re-find #"\d{4}\.\d{2}\.\d{2}$" (:index %)) indices)
+        first-monthly-index (first monthly-indices)
+        first-daily-index   (first daily-indices)
+        yearly-aliases      (compact
+                              (map #(if (< (index-year %) (index-year first-monthly-index))
+                                      {:add {:index (:index %) :alias (clojure.string/replace (:index %) index-prefix alias-prefix)}}
+                                      (if (= (index-year %) (index-year first-monthly-index))
+                                        {:add {:index (:index %) :alias (clojure.string/replace (:index %) index-prefix alias-prefix) :filter {:range {"@timestamp" {:lt (index-start-timestamp first-monthly-index)}}}}})
+                                      ) yearly-indices))
+        monthly-aliases     (compact
+                              (map #(if (or (< (index-year %) (index-year first-daily-index))
+                                            (and (= (index-year %) (index-year first-daily-index))
+                                                 (< (index-month %) (index-month first-daily-index))))
+                                      {:add {:index (:index %) :alias (clojure.string/replace (:index %) index-prefix alias-prefix)}}
+                                      (if (and (= (index-year %) (index-year first-daily-index))
+                                               (= (index-month %) (index-month first-daily-index)))
+                                        {:add {:index (:index %) :alias (clojure.string/replace (:index %) index-prefix alias-prefix) :filter {:range {"@timestamp" {:lt (index-start-timestamp first-daily-index)}}}}})
+                                      ) monthly-indices))
+        daily-aliases     (map #(if true {:add {:index (:index %)  :alias (clojure.string/replace (:index %) index-prefix alias-prefix)}}) daily-indices)]
+    {:url "_aliases" :method :post :body {:actions (concat yearly-aliases monthly-aliases daily-aliases)}}))
+
+(defn rotate-ng
+  "Maintain samplerr aliases"
+  [{:keys [conn index-prefix alias-prefix] :or {alias-prefix "samplerr-" index-prefix ".samplerr-"}}]
+  (let [response (es/request conn {:url (str "_cat/aliases/" alias-prefix "*?format=json&s=alias") :method :get})
+        aliases  (:body response)]
+    (if (seq aliases)
+      (do
+        (info "Removing samplerr aliases")
+        (es/request conn (remove-existing-aliases-query aliases)))))
+  (let [response            (es/request conn {:url (str "_cat/indices/" index-prefix "*?format=json&s=index") :method :get})
+        indices             (:body response)]
+    (if (seq indices)
+      (do
+        (info "Creating samplerr aliases")
+        (es/request conn (create-aliases-query indices index-prefix alias-prefix))))))
+
+(defn rotation-service-ng
+  "returns a service which schedules a task to rotate aliases"
+  [{:keys [interval conn alias-prefix index-prefix enabled?]
+    :or {interval (clj-time.core/minutes 5)
+         enabled? true}}]
+  (let [interval (to-millis interval)]
+    (service/thread-service
+      ::samplerr-rotation [interval conn alias-prefix index-prefix enabled?]
+      (fn rot [core]
+        (Thread/sleep interval)
+        (try
+          (if enabled?
+            (rotate-ng {:conn conn :index-prefix index-prefix :alias-prefix alias-prefix}))
+          (catch Exception e
+            (warn e "rotation service caught")))))))
+
+(defn periodically-rotate-ng
+    "adds an alias rotation service to core"
+  [& opts]
+  (info "registering rotation service with" (apply :interval opts) "interval")
+  (let [service (apply rotation-service-ng opts)]
+    (swap! riemann.config/next-core core/conj-service service :force)))
