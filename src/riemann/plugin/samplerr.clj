@@ -582,25 +582,18 @@
         (info "Creating samplerr aliases")
         (es/request conn (create-aliases-query indices index-prefix alias-prefix))))))
 
-(defn rotation-service-ng
-  "returns a service which schedules a task to rotate aliases"
-  [{:keys [interval conn alias-prefix index-prefix enabled?]
-    :or {interval (clj-time.core/minutes 5)
-         enabled? true}}]
-  (let [interval (to-millis interval)]
-    (service/thread-service
-      ::samplerr-rotation [interval conn alias-prefix index-prefix enabled?]
-      (fn rot [core]
-        (Thread/sleep interval)
-        (try
-          (if enabled?
-            (rotate-ng {:conn conn :index-prefix index-prefix :alias-prefix alias-prefix}))
-          (catch Exception e
-            (warn e "rotation service caught")))))))
-
 (defn periodically-rotate-ng
-    "adds an alias rotation service to core"
-  [& opts]
-  (info "registering rotation service with" (apply :interval opts) "interval")
-  (let [service (apply rotation-service-ng opts)]
-    (swap! riemann.config/next-core core/conj-service service :force)))
+  "Automatically maintain samplerr aliases"
+  [opts]
+  (let [rotation-interval 86400
+        rotation-delay 60
+        beginning-of-last-rotation-interval (* (quot (unix-time) rotation-interval) rotation-interval)
+        beginning-of-next-rotation-interval (riemann.time/next-tick beginning-of-last-rotation-interval rotation-interval)
+        daily-rotation-delay (+ beginning-of-next-rotation-interval rotation-delay)
+        do-rotate (fn [] (rotate-ng opts))]
+    (info (str "Scheduling bootime alias management in " rotation-delay " seconds"))
+    (riemann.time/after! rotation-delay do-rotate)
+    (info (str "Scheduling daily alias management at " (.format (java.text.SimpleDateFormat. "yyyy-MM-dd'T'HH:mm:ssXXX") (* 1000 daily-rotation-delay))))
+    (riemann.time/once!
+      daily-rotation-delay
+      (fn [] (riemann.time/every! rotation-interval do-rotate)))))
