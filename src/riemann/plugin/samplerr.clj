@@ -566,7 +566,7 @@
         daily-aliases     (map #(if true {:add {:index (:index %)  :alias (clojure.string/replace (:index %) index-prefix alias-prefix)}}) daily-indices)]
     {:url "_aliases" :method :post :body {:actions (concat yearly-aliases monthly-aliases daily-aliases)}}))
 
-(defn rotate-ng
+(defn update-aliases
   "Maintain samplerr aliases"
   [{:keys [conn index-prefix alias-prefix] :or {alias-prefix "samplerr-" index-prefix ".samplerr-"}}]
   (let [response (es/request conn {:url (str "_cat/aliases/" alias-prefix "*?format=json&s=alias") :method :get})
@@ -582,18 +582,34 @@
         (info "Creating samplerr aliases")
         (es/request conn (create-aliases-query indices index-prefix alias-prefix))))))
 
-(defn periodically-rotate-ng
-  "Automatically maintain samplerr aliases"
-  [opts]
+(defn maintain
+  "Perform samplerr maintenance"
+  [{:keys [conn alias-prefix index-prefix archives purge? update-aliases?]
+    :or {alias-prefix "samplerr-"
+         index-prefix ".samplerr-"
+         purge? false
+         update-aliases? true}}]
+  (if purge?
+    (purge {:conn conn :index-prefix index-prefix :archives archives}))
+  (if update-aliases?
+    (update-aliases {:conn conn :index-prefix index-prefix :alias-prefix alias-prefix})))
+
+(defn periodically-maintain
+  "Periodically perform samplerr maintenance"
+  [{:keys [conn archives alias-prefix index-prefix purge? update-aliases?]
+    :or {alias-prefix "samplerr-"
+         index-prefix ".samplerr-"
+         purge? false
+         update-aliases? true}}]
   (let [rotation-interval 86400
         rotation-delay 60
         beginning-of-last-rotation-interval (* (quot (unix-time) rotation-interval) rotation-interval)
         beginning-of-next-rotation-interval (riemann.time/next-tick beginning-of-last-rotation-interval rotation-interval)
         daily-rotation-delay (+ beginning-of-next-rotation-interval rotation-delay)
-        do-rotate (fn [] (rotate-ng opts))]
-    (info (str "Scheduling bootime alias management in " rotation-delay " seconds"))
-    (riemann.time/after! rotation-delay do-rotate)
-    (info (str "Scheduling daily alias management at " (.format (java.text.SimpleDateFormat. "yyyy-MM-dd'T'HH:mm:ssXXX") (* 1000 daily-rotation-delay))))
+        do-maintain (fn [] (maintain {:conn conn :alias-prefix alias-prefix :index-prefix index-prefix :archives archives :purge? purge? :update-aliases? update-aliases?}))]
+    (info (str "Scheduling startup samplerr maintenance in " rotation-delay " seconds"))
+    (riemann.time/after! rotation-delay do-maintain)
+    (info (str "Scheduling daily samplerr maintenance at " (.format (java.text.SimpleDateFormat. "yyyy-MM-dd'T'HH:mm:ssXXX") (* 1000 daily-rotation-delay))))
     (riemann.time/once!
       daily-rotation-delay
-      (fn [] (riemann.time/every! rotation-interval do-rotate)))))
+      (fn [] (riemann.time/every! rotation-interval do-maintain)))))
