@@ -9,7 +9,9 @@
               [[cheshire "5.7.0"]
                [org.clojure/clojure "1.8.0"]
                [riemann "0.3.8"]
+               [com.fasterxml.jackson.core/jackson-core "2.10.0"]
                [clj-time "0.13.0"]
+               [cc.qbits/commons "0.5.1"]
                [org.clojure/tools.logging "0.3.1"]]}}
   :plugins [[lein-rpm "0.0.5"
              :exclusions [org.apache.maven/maven-plugin-api

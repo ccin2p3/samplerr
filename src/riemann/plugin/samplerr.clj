@@ -485,3 +485,131 @@
   (let [service (apply rotation-service opts)]
     (swap! riemann.config/next-core core/conj-service service :force)))
 
+(defn index-parts
+  "Match the year, month and day out of an index name"
+  [index]
+  (let [index-name (:index index)]
+    (rest (re-find #"(\d{4})(?:\.(\d{2})(?:\.(\d{2}))?)?$" index-name))))
+
+(defn index-year
+  "Return the year of an index as an Integer"
+  [index]
+  (Integer. (first (index-parts index))))
+
+(defn index-month
+  "Return the month of an index as an Integer"
+  [index]
+  (Integer. (or (second (index-parts index)) "1")))
+
+(defn index-day
+  "Return the day of an index as an Integer"
+  [index]
+  (Integer. (or (nth (index-parts index) 2) "1")))
+
+(defn yearly-index?
+  "Return true if an index has yearly data"
+  [index]
+  (= nil (second (index-parts index))))
+
+(defn monthly-index?
+  "Return true if an index has monthly data"
+  [index]
+  (and
+    (not (yearly-index? index))
+    (= nil (nth (index-parts index) 2))))
+
+(defn daily-index?
+  "Return true if an index has daily data"
+  [index]
+  (and
+    (not (yearly-index? index))
+    (not (monthly-index? index))))
+
+(defn index-start-timestamp
+  "Return an ISO timestamp of the time the index starts at"
+  [index]
+  (format "%02d-%02d-%02dT00:00:00Z" (index-year index) (index-month index) (index-day index)))
+
+(defn compact
+  "Remove nil items from a collection"
+  [coll]
+  (remove nil? coll))
+
+(defn remove-existing-aliases-query
+  "Return a query to remove all the passed aliases"
+  [aliases]
+  {:url "_aliases" :method :post :body {:actions (map #(if true {:remove {:index (:index %) :alias (:alias %)}}) aliases)}})
+
+(defn create-aliases-query
+  "Return a query to create the aliases to query all passed indices"
+  [indices index-prefix alias-prefix]
+  (let [yearly-indices      (filter #(re-find #"\d{4}$" (:index %)) indices)
+        monthly-indices     (filter #(re-find #"\d{4}\.\d{2}$" (:index %)) indices)
+        daily-indices       (filter #(re-find #"\d{4}\.\d{2}\.\d{2}$" (:index %)) indices)
+        first-monthly-index (first monthly-indices)
+        first-daily-index   (first daily-indices)
+        yearly-aliases      (compact
+                              (map #(if (< (index-year %) (index-year first-monthly-index))
+                                      {:add {:index (:index %) :alias (clojure.string/replace (:index %) index-prefix alias-prefix)}}
+                                      (if (= (index-year %) (index-year first-monthly-index))
+                                        {:add {:index (:index %) :alias (clojure.string/replace (:index %) index-prefix alias-prefix) :filter {:range {"@timestamp" {:lt (index-start-timestamp first-monthly-index)}}}}})
+                                      ) yearly-indices))
+        monthly-aliases     (compact
+                              (map #(if (or (< (index-year %) (index-year first-daily-index))
+                                            (and (= (index-year %) (index-year first-daily-index))
+                                                 (< (index-month %) (index-month first-daily-index))))
+                                      {:add {:index (:index %) :alias (clojure.string/replace (:index %) index-prefix alias-prefix)}}
+                                      (if (and (= (index-year %) (index-year first-daily-index))
+                                               (= (index-month %) (index-month first-daily-index)))
+                                        {:add {:index (:index %) :alias (clojure.string/replace (:index %) index-prefix alias-prefix) :filter {:range {"@timestamp" {:lt (index-start-timestamp first-daily-index)}}}}})
+                                      ) monthly-indices))
+        daily-aliases     (map #(if true {:add {:index (:index %)  :alias (clojure.string/replace (:index %) index-prefix alias-prefix)}}) daily-indices)]
+    {:url "_aliases" :method :post :body {:actions (concat yearly-aliases monthly-aliases daily-aliases)}}))
+
+(defn update-aliases
+  "Maintain samplerr aliases"
+  [{:keys [conn index-prefix alias-prefix] :or {alias-prefix "samplerr-" index-prefix ".samplerr-"}}]
+  (let [response (es/request conn {:url (str "_cat/aliases/" alias-prefix "*?format=json&s=alias") :method :get})
+        aliases  (:body response)]
+    (if (seq aliases)
+      (do
+        (info "Removing samplerr aliases")
+        (es/request conn (remove-existing-aliases-query aliases)))))
+  (let [response            (es/request conn {:url (str "_cat/indices/" index-prefix "*?format=json&s=index") :method :get})
+        indices             (:body response)]
+    (if (seq indices)
+      (do
+        (info "Creating samplerr aliases")
+        (es/request conn (create-aliases-query indices index-prefix alias-prefix))))))
+
+(defn maintain
+  "Perform samplerr maintenance"
+  [{:keys [conn alias-prefix index-prefix archives purge? update-aliases?]
+    :or {alias-prefix "samplerr-"
+         index-prefix ".samplerr-"
+         purge? false
+         update-aliases? true}}]
+  (if purge?
+    (purge {:conn conn :index-prefix index-prefix :archives archives}))
+  (if update-aliases?
+    (update-aliases {:conn conn :index-prefix index-prefix :alias-prefix alias-prefix})))
+
+(defn periodically-maintain
+  "Periodically perform samplerr maintenance"
+  [{:keys [conn archives alias-prefix index-prefix purge? update-aliases?]
+    :or {alias-prefix "samplerr-"
+         index-prefix ".samplerr-"
+         purge? false
+         update-aliases? true}}]
+  (let [rotation-interval 86400
+        rotation-delay 60
+        beginning-of-last-rotation-interval (* (quot (unix-time) rotation-interval) rotation-interval)
+        beginning-of-next-rotation-interval (riemann.time/next-tick beginning-of-last-rotation-interval rotation-interval)
+        daily-rotation-delay (+ beginning-of-next-rotation-interval rotation-delay)
+        do-maintain (fn [] (maintain {:conn conn :alias-prefix alias-prefix :index-prefix index-prefix :archives archives :purge? purge? :update-aliases? update-aliases?}))]
+    (info (str "Scheduling startup samplerr maintenance in " rotation-delay " seconds"))
+    (riemann.time/after! rotation-delay do-maintain)
+    (info (str "Scheduling daily samplerr maintenance at " (.format (java.text.SimpleDateFormat. "yyyy-MM-dd'T'HH:mm:ssXXX") (* 1000 daily-rotation-delay))))
+    (riemann.time/once!
+      daily-rotation-delay
+      (fn [] (riemann.time/every! rotation-interval do-maintain)))))
