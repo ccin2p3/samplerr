@@ -1,4 +1,4 @@
-(defproject samplerr "0.6.5"
+(defproject samplerr "0.6.6"
   :description "riemann plugin to aggregate data in a round-robin fashion to elasticsearch"
   :url "http://github.com/samplerr/samplerr"
   :license {:name "EPL-1.0"
@@ -6,7 +6,7 @@
   :dependencies [[cc.qbits/spandex "0.7.10"]]
   :profiles {:provided
              {:dependencies
-              [[cheshire "5.7.0"]
+              [[cheshire "5.9.0"]
                [org.clojure/clojure "1.8.0"]
                [riemann "0.3.8"]
                [clj-time "0.13.0"]
