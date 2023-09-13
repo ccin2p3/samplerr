@@ -20,11 +20,14 @@
 
 (defn ^{:private true} keys-to-map [key-map] 
   (reduce-kv (fn [key-map k v] 
+                 ;"java.lang.String cannot be cast to clojure.lang.Associative"
+               (try
                  (assoc-in key-map 
                               (clojure.string/split (name k) #"\.")
                               (if (map? v) 
                                   (keys-to-map v) 
-                                  v))) 
+                                  v))
+                 (catch Exception e (warn "caught exception in keys-to-map: " (str e) " with key-map: " key-map " with key " k " and value " v) {})))
                                 {} key-map))
 
 
