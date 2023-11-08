@@ -1,17 +1,17 @@
-(defproject samplerr "0.6.6"
+(defproject samplerr "0.6.7"
   :description "riemann plugin to aggregate data in a round-robin fashion to elasticsearch"
   :url "http://github.com/samplerr/samplerr"
   :license {:name "EPL-1.0"
             :url "https://spdx.org/licenses/EPL-1.0.html"}
-  :dependencies [[cc.qbits/spandex "0.7.10"]]
+  :dependencies [[cc.qbits/spandex "0.8.2"]]
   :profiles {:provided
              {:dependencies
               [[cheshire "5.9.0"]
-               [org.clojure/clojure "1.8.0"]
-               [riemann "0.3.8"]
-               [clj-time "0.13.0"]
-               [org.clojure/tools.logging "0.3.1"]]}}
-  :plugins [[lein-rpm "0.0.5"
+               [org.clojure/clojure "1.9.0"]
+               [riemann "0.3.10"]
+               [clj-time "0.14.2"]
+               [org.clojure/tools.logging "1.2.1"]]}}
+  :plugins [[lein-rpm "0.0.6"
              :exclusions [org.apache.maven/maven-plugin-api
                           org.codehaus.plexus/plexus-container-default
                           org.codehaus.plexus/plexus-utils
